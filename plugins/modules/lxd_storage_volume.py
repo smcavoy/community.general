@@ -90,7 +90,9 @@ options:
         type: str
     target:
         description:
-          - For cluster deployments. Will attempt to create a storage volume on a target node.
+          - For cluster deployments. Specifies the cluster member where the volume should be located.
+          - When creating a new volume, it will be created on the specified target node.
+          - When a volume already exists on a different cluster member, it will be migrated to the target node.
           - The name should match the node name you see in C(lxc cluster list).
         type: str
         required: false
@@ -202,6 +204,14 @@ EXAMPLES = '''
     config:
       size: 15GiB
     state: present
+
+# Migrate existing volume to a different cluster node
+- name: Migrate volume to node02
+  community.general.lxd_storage_volume:
+    name: cluster-volume
+    pool: my-pool
+    target: node02
+    state: present
 '''
 
 RETURN = '''
@@ -219,7 +229,7 @@ actions:
   description: List of actions performed for the storage volume.
   returned: success
   type: list
-  sample: ["create"]
+  sample: ["create", "migrate", "apply_configs", "delete"]
 '''
 
 import os
@@ -344,6 +354,36 @@ class LXDStorageVolumeManagement(object):
             self.client.do('DELETE', url)
         self.actions.append('delete')
 
+    def _needs_to_migrate_volume(self):
+        """Check if volume needs to be migrated to a different cluster member."""
+        if not self.target:
+            return False
+        
+        # Check if volume metadata has location information
+        old_metadata = self.old_volume_json.get('metadata', {})
+        current_location = old_metadata.get('location', None)
+        
+        # If volume has a location and it's different from target, migration is needed
+        if current_location and current_location != self.target:
+            return True
+        
+        return False
+
+    def _migrate_storage_volume(self):
+        """Migrate volume to a different cluster member using POST with target parameter."""
+        url = '/1.0/storage-pools/{0}/volumes/{1}/{2}'.format(
+            self.pool, self.volume_type, self.name
+        )
+        url_params = dict(target=self.target)
+        if self.project:
+            url_params['project'] = self.project
+        url = '{0}?{1}'.format(url, urlencode(url_params))
+        
+        # POST with empty body to trigger migration
+        if not self.module.check_mode:
+            self.client.do('POST', url, body_json={})
+        self.actions.append('migrate')
+
     def _needs_to_change_config(self, key):
         if key not in self.config:
             return False
@@ -398,6 +438,10 @@ class LXDStorageVolumeManagement(object):
             if self.old_state == 'absent':
                 self._create_storage_volume()
             else:
+                # Check if volume needs to be migrated to a different cluster member
+                if self._needs_to_migrate_volume():
+                    self._migrate_storage_volume()
+                # Apply config changes
                 if self._needs_to_apply_configs():
                     self._apply_storage_volume_configs()
         elif self.state == 'absent':
