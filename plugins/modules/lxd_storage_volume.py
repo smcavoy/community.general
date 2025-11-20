@@ -11,12 +11,12 @@ __metaclass__ = type
 
 DOCUMENTATION = '''
 ---
-module: lxd_storage
-short_description: Manage LXD storage pools and volumes
+module: lxd_storage_volume
+short_description: Manage LXD storage volumes
 version_added: 9.2.0
 description:
-  - Management of LXD storage pools and storage volumes.
-  - This module can manage both storage pools and storage volumes within those pools.
+  - Management of LXD storage volumes.
+  - Supports both filesystem and block content types.
 author: "Sean McAvoy (@smcavoy)"
 extends_documentation_fragment:
   - community.general.attributes
@@ -28,34 +28,24 @@ attributes:
 options:
     name:
         description:
-          - Name of the storage pool or storage volume.
+          - Name of the storage volume.
+        type: str
+        required: true
+    pool:
+        description:
+          - Name of the storage pool.
+          - Required when managing volumes.
         type: str
         required: true
     project:
         description:
-          - 'Project of the storage pool or volume.
+          - 'Project of the storage volume.
             See U(https://documentation.ubuntu.com/lxd/en/latest/projects/).'
         required: false
         type: str
     type:
         description:
-          - Type of storage resource to manage.
-          - V(pool) manages a storage pool.
-          - V(volume) manages a storage volume.
-        type: str
-        choices:
-          - pool
-          - volume
-        default: pool
-    pool:
-        description:
-          - Name of the storage pool (required when O(type=volume)).
-          - When managing volumes, this specifies which pool the volume belongs to.
-        type: str
-        required: false
-    volume_type:
-        description:
-          - Type of storage volume (required when O(type=volume)).
+          - Type of storage volume.
           - V(custom) for custom storage volumes.
           - V(container) for container volumes (read-only).
           - V(virtual-machine) for VM volumes (read-only).
@@ -67,24 +57,26 @@ options:
           - virtual-machine
           - image
         default: custom
-    driver:
+    content_type:
         description:
-          - 'Storage pool driver (required when creating a pool).
-            See U(https://documentation.ubuntu.com/lxd/en/latest/reference/storage_drivers/).'
-          - Common drivers include V(dir), V(zfs), V(btrfs), V(lvm), V(ceph).
+          - Content type of the storage volume.
+          - V(filesystem) for filesystem-based volumes (default).
+          - V(block) for block-based volumes.
         type: str
-        required: false
+        choices:
+          - filesystem
+          - block
+        default: filesystem
     config:
         description:
-          - 'Configuration for the storage pool or volume.
+          - 'Configuration for the storage volume.
             See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
-          - For pools, this can include driver-specific options like V(size), V(source), etc.
-          - For volumes, this can include V(size), V(snapshots.expiry), etc.
+          - This can include V(size), V(snapshots.expiry), V(block.filesystem), V(block.mount_options), etc.
         type: dict
         required: false
     description:
         description:
-          - Description of the storage pool or volume.
+          - Description of the storage volume.
         type: str
         required: false
     state:
@@ -92,13 +84,13 @@ options:
           - present
           - absent
         description:
-          - Define the state of the storage pool or volume.
+          - Define the state of the storage volume.
         required: false
         default: present
         type: str
     target:
         description:
-          - For cluster deployments. Will attempt to create a storage resource on a target node.
+          - For cluster deployments. Will attempt to create a storage volume on a target node.
           - The name should match the node name you see in C(lxc cluster list).
         type: str
         required: false
@@ -140,84 +132,81 @@ options:
         required: false
         type: str
 notes:
-  - Storage pools and volumes must have unique names within their scope.
-  - Storage pools can use various backend drivers (dir, zfs, btrfs, lvm, ceph).
   - Custom storage volumes can be attached to containers and virtual machines.
+  - Block volumes require specific filesystem configuration in the config.
 '''
 
 EXAMPLES = '''
-# Create a directory-based storage pool
-- name: Create a dir storage pool
-  community.general.lxd_storage:
-    name: my-dir-pool
-    type: pool
-    driver: dir
-    config:
-      source: /var/lib/lxd/storage-pools/my-dir-pool
-    description: "Directory-based storage pool"
-    state: present
-
-# Create a ZFS storage pool
-- name: Create a ZFS storage pool
-  community.general.lxd_storage:
-    name: my-zfs-pool
-    type: pool
-    driver: zfs
-    config:
-      size: 50GiB
-    description: "ZFS storage pool"
-    state: present
-
-# Create a custom storage volume
-- name: Create a custom storage volume
-  community.general.lxd_storage:
-    name: my-volume
-    type: volume
-    pool: my-dir-pool
+# Create a filesystem custom storage volume
+- name: Create a filesystem volume
+  community.general.lxd_storage_volume:
+    name: my-fs-volume
+    pool: my-pool
+    type: custom
+    content_type: filesystem
     config:
       size: 10GiB
-    description: "My custom storage volume"
+    description: "Filesystem storage volume"
+    state: present
+
+# Create a block custom storage volume
+- name: Create a block volume
+  community.general.lxd_storage_volume:
+    name: my-block-volume
+    pool: my-pool
+    type: custom
+    content_type: block
+    config:
+      size: 20GiB
+    description: "Block storage volume"
+    state: present
+
+# Resize a volume
+- name: Resize volume
+  community.general.lxd_storage_volume:
+    name: my-volume
+    pool: my-pool
+    config:
+      size: 30GiB
+    state: present
+
+# Update volume description
+- name: Update description
+  community.general.lxd_storage_volume:
+    name: my-volume
+    pool: my-pool
+    description: "Updated description"
     state: present
 
 # Delete a storage volume
-- name: Delete a storage volume
-  community.general.lxd_storage:
+- name: Delete volume
+  community.general.lxd_storage_volume:
     name: my-volume
-    type: volume
-    pool: my-dir-pool
+    pool: my-pool
     state: absent
 
-# Delete a storage pool
-- name: Delete a storage pool
-  community.general.lxd_storage:
-    name: my-dir-pool
-    type: pool
-    state: absent
-
-# Create storage pool in a specific project
-- name: Create storage pool in project
-  community.general.lxd_storage:
-    name: project-pool
-    type: pool
-    driver: dir
+# Create volume in a specific project
+- name: Create volume in project
+  community.general.lxd_storage_volume:
+    name: project-volume
+    pool: my-pool
     project: myproject
     state: present
 
-# Create storage pool on a specific cluster node
-- name: Create storage pool on cluster node
-  community.general.lxd_storage:
-    name: cluster-pool
-    type: pool
-    driver: zfs
+# Create volume on a specific cluster node
+- name: Create volume on cluster node
+  community.general.lxd_storage_volume:
+    name: cluster-volume
+    pool: my-pool
     target: node01
     config:
-      source: /dev/sdb
+      size: 15GiB
     state: present
 '''
 
 RETURN = '''
 old_state:
-  description: The old state of the storage resource.
+  description: The old state of the storage volume.
   returned: success
   type: str
   sample: "absent"
@@ -227,7 +216,7 @@ logs:
   type: list
   sample: "(too long to be placed here)"
 actions:
-  description: List of actions performed for the storage resource.
+  description: List of actions performed for the storage volume.
   returned: success
   type: list
   sample: ["create"]
@@ -248,23 +237,23 @@ STORAGE_STATES = [
 
 # CONFIG_PARAMS is a list of config attribute names.
 CONFIG_PARAMS = [
-    'config', 'description', 'driver'
+    'config', 'description'
 ]
 
 
-class LXDStorageManagement(object):
+class LXDStorageVolumeManagement(object):
     def __init__(self, module):
-        """Management of LXD storage via Ansible.
+        """Management of LXD storage volumes via Ansible.
 
         :param module: Processed Ansible Module.
         :type module: ``object``
         """
         self.module = module
         self.name = self.module.params['name']
+        self.pool = self.module.params['pool']
         self.project = self.module.params['project']
-        self.storage_type = self.module.params['type']
-        self.pool = self.module.params.get('pool', None)
-        self.volume_type = self.module.params.get('volume_type', 'custom')
+        self.volume_type = self.module.params.get('type', 'custom')
+        self.content_type = self.module.params.get('content_type', 'filesystem')
         self._build_config()
 
         self.state = self.module.params['state']
@@ -299,7 +288,7 @@ class LXDStorageManagement(object):
         self.trust_password = self.module.params.get('trust_password', None)
         self.actions = []
         self.diff = {'before': {}, 'after': {}}
-        self.old_resource_json = {}
+        self.old_volume_json = {}
 
     def _build_config(self):
         self.config = {}
@@ -307,12 +296,6 @@ class LXDStorageManagement(object):
             param_val = self.module.params.get(attr, None)
             if param_val is not None:
                 self.config[attr] = param_val
-
-    def _get_storage_pool_json(self):
-        url = '/1.0/storage-pools/{0}'.format(self.name)
-        if self.project:
-            url = '{0}?{1}'.format(url, urlencode(dict(project=self.project)))
-        return self.client.do('GET', url, ok_error_codes=[404])
 
     def _get_storage_volume_json(self):
         url = '/1.0/storage-pools/{0}/volumes/{1}/{2}'.format(
@@ -323,36 +306,12 @@ class LXDStorageManagement(object):
         return self.client.do('GET', url, ok_error_codes=[404])
 
     @staticmethod
-    def _resource_json_to_module_state(resp_json):
+    def _volume_json_to_module_state(resp_json):
         if resp_json['type'] == 'error':
             return 'absent'
         return 'present'
 
-    def _create_storage_pool(self):
-        url = '/1.0/storage-pools'
-        url_params = dict()
-        if self.target:
-            url_params['target'] = self.target
-        if self.project:
-            url_params['project'] = self.project
-        if url_params:
-            url = '{0}?{1}'.format(url, urlencode(url_params))
-        
-        config = self.config.copy()
-        config['name'] = self.name
-        
-        # Driver is required for pool creation
-        if 'driver' not in config:
-            self.module.fail_json(msg='driver is required when creating a storage pool')
-        
-        if not self.module.check_mode:
-            self.client.do('POST', url, config)
-        self.actions.append('create')
-
     def _create_storage_volume(self):
-        if not self.pool:
-            self.module.fail_json(msg='pool is required when creating a storage volume')
-        
         url = '/1.0/storage-pools/{0}/volumes/{1}'.format(self.pool, self.volume_type)
         url_params = dict()
         if self.target:
@@ -369,18 +328,11 @@ class LXDStorageManagement(object):
             config['description'] = self.config['description']
         config['name'] = self.name
         config['type'] = self.volume_type
+        config['content_type'] = self.content_type
         
         if not self.module.check_mode:
             self.client.do('POST', url, config)
         self.actions.append('create')
-
-    def _delete_storage_pool(self):
-        url = '/1.0/storage-pools/{0}'.format(self.name)
-        if self.project:
-            url = '{0}?{1}'.format(url, urlencode(dict(project=self.project)))
-        if not self.module.check_mode:
-            self.client.do('DELETE', url)
-        self.actions.append('delete')
 
     def _delete_storage_volume(self):
         url = '/1.0/storage-pools/{0}/volumes/{1}/{2}'.format(
@@ -396,7 +348,7 @@ class LXDStorageManagement(object):
         if key not in self.config:
             return False
         
-        old_configs = self.old_resource_json.get('metadata', {}).get(key, None)
+        old_configs = self.old_volume_json.get('metadata', {}).get(key, None)
         
         if key == 'config':
             old_config = dict(old_configs or {})
@@ -411,48 +363,15 @@ class LXDStorageManagement(object):
 
     def _needs_to_apply_configs(self):
         for param in CONFIG_PARAMS:
-            if param == 'driver':
-                # Driver cannot be changed after creation
-                continue
             if self._needs_to_change_config(param):
                 return True
         return False
 
-    def _apply_storage_pool_configs(self):
-        old_metadata = self.old_resource_json.get('metadata', {})
+    def _apply_storage_volume_configs(self):
+        old_metadata = self.old_volume_json.get('metadata', {})
         body_json = {}
         
         for param in CONFIG_PARAMS:
-            if param == 'driver':
-                # Driver cannot be changed
-                if param in old_metadata:
-                    body_json[param] = old_metadata[param]
-                continue
-            
-            if param in old_metadata:
-                body_json[param] = old_metadata[param]
-            
-            if self._needs_to_change_config(param):
-                if param == 'config':
-                    body_json['config'] = body_json.get('config', {})
-                    for k, v in self.config['config'].items():
-                        body_json['config'][k] = v
-                else:
-                    body_json[param] = self.config[param]
-        
-        self.diff['after'] = body_json
-        url = '/1.0/storage-pools/{0}'.format(self.name)
-        if self.project:
-            url = '{0}?{1}'.format(url, urlencode(dict(project=self.project)))
-        if not self.module.check_mode:
-            self.client.do('PUT', url, body_json=body_json)
-        self.actions.append('apply_configs')
-
-    def _apply_storage_volume_configs(self):
-        old_metadata = self.old_resource_json.get('metadata', {})
-        body_json = {}
-        
-        for param in ['config', 'description']:
             if param in old_metadata:
                 body_json[param] = old_metadata[param]
             
@@ -475,26 +394,15 @@ class LXDStorageManagement(object):
         self.actions.append('apply_configs')
 
     def _manage_state(self):
-        if self.storage_type == 'pool':
-            if self.state == 'present':
-                if self.old_state == 'absent':
-                    self._create_storage_pool()
-                else:
-                    if self._needs_to_apply_configs():
-                        self._apply_storage_pool_configs()
-            elif self.state == 'absent':
-                if self.old_state == 'present':
-                    self._delete_storage_pool()
-        elif self.storage_type == 'volume':
-            if self.state == 'present':
-                if self.old_state == 'absent':
-                    self._create_storage_volume()
-                else:
-                    if self._needs_to_apply_configs():
-                        self._apply_storage_volume_configs()
-            elif self.state == 'absent':
-                if self.old_state == 'present':
-                    self._delete_storage_volume()
+        if self.state == 'present':
+            if self.old_state == 'absent':
+                self._create_storage_volume()
+            else:
+                if self._needs_to_apply_configs():
+                    self._apply_storage_volume_configs()
+        elif self.state == 'absent':
+            if self.old_state == 'present':
+                self._delete_storage_volume()
 
     def run(self):
         """Run the main method."""
@@ -503,23 +411,19 @@ class LXDStorageManagement(object):
             if self.trust_password is not None:
                 self.client.authenticate(self.trust_password)
 
-            # Get current state of the resource
-            if self.storage_type == 'pool':
-                self.old_resource_json = self._get_storage_pool_json()
-            elif self.storage_type == 'volume':
-                self.old_resource_json = self._get_storage_volume_json()
-
-            self.old_state = self._resource_json_to_module_state(self.old_resource_json)
+            # Get current state of the volume
+            self.old_volume_json = self._get_storage_volume_json()
+            self.old_state = self._volume_json_to_module_state(self.old_volume_json)
             
             # Set up diff
             if self.old_state == 'present':
-                self.diff['before'] = self.old_resource_json.get('metadata', {})
+                self.diff['before'] = self.old_volume_json.get('metadata', {})
             else:
                 self.diff['before'] = {}
             
             self.diff['after'] = self.config
 
-            # Manage the resource state
+            # Manage the volume state
             self._manage_state()
 
             state_changed = len(self.actions) > 0
@@ -554,24 +458,22 @@ def main():
                 type='str',
                 required=True,
             ),
+            pool=dict(
+                type='str',
+                required=True,
+            ),
             project=dict(
                 type='str',
             ),
             type=dict(
                 type='str',
-                choices=['pool', 'volume'],
-                default='pool',
-            ),
-            pool=dict(
-                type='str',
-            ),
-            volume_type=dict(
-                type='str',
                 choices=['custom', 'container', 'virtual-machine', 'image'],
                 default='custom',
             ),
-            driver=dict(
+            content_type=dict(
                 type='str',
+                choices=['filesystem', 'block'],
+                default='filesystem',
             ),
             config=dict(
                 type='dict',
@@ -605,12 +507,9 @@ def main():
             trust_password=dict(type='str', no_log=True),
         ),
         supports_check_mode=True,
-        required_if=[
-            ('type', 'volume', ['pool']),
-        ],
     )
 
-    lxd_manage = LXDStorageManagement(module=module)
+    lxd_manage = LXDStorageVolumeManagement(module=module)
     lxd_manage.run()
 
 

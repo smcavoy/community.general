@@ -1,6 +1,6 @@
 # LXD Storage Integration Tests
 
-This directory contains integration tests for the `lxd_storage` module.
+This directory contains integration tests for the `lxd_storage_pool` module.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ This directory contains integration tests for the `lxd_storage` module.
 ### Using ansible-test
 
 ```bash
-ansible-test integration lxd_storage --docker
+ansible-test integration lxd_storage_pool --docker
 ```
 
 ### Manual Testing

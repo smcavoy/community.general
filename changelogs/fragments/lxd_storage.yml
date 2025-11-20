@@ -4,4 +4,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 minor_changes:
-  - lxd_storage - add new module for managing LXD storage pools and storage volumes (https://github.com/ansible-collections/community.general/pull/XXXXX).
+  - lxd_storage_pool - add new module for managing LXD storage pools (https://github.com/ansible-collections/community.general/pull/XXXXX).
+  - lxd_storage_volume - add new module for managing LXD storage volumes with support for filesystem and block content types (https://github.com/ansible-collections/community.general/pull/XXXXX).
