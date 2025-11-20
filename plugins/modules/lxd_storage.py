@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2024, Your Name <your.email@example.com>
+# Copyright (c) 2024, LXD Storage Module Contributors
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -13,6 +13,7 @@ DOCUMENTATION = '''
 ---
 module: lxd_storage
 short_description: Manage LXD storage pools and volumes
+version_added: 9.2.0
 description:
   - Management of LXD storage pools and storage volumes.
   - This module can manage both storage pools and storage volumes within those pools.
