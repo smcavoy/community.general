@@ -14,7 +14,7 @@ DOCUMENTATION = """
 ---
 module: lxd_storage_volume
 short_description: Manage LXD storage volumes
-version_added: 9.2.0
+version_added: 12.1.0
 description:
   - Management of LXD storage volumes.
   - Supports both filesystem and block content types.

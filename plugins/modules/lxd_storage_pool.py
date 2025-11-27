@@ -14,7 +14,7 @@ DOCUMENTATION = """
 ---
 module: lxd_storage_pool
 short_description: Manage LXD storage pools
-version_added: 9.2.0
+version_added: 12.1.0
 description:
   - Management of LXD storage pools.
 author: "Sean McAvoy (@smcavoy)"
