@@ -5,11 +5,12 @@
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from __future__ import absolute_import, division, print_function
+from __future__ import annotations
+
 __metaclass__ = type
 
 
-DOCUMENTATION = '''
+DOCUMENTATION = """
 ---
 module: lxd_storage_pool
 short_description: Manage LXD storage pools
@@ -34,7 +35,6 @@ options:
         description:
           - 'Project of the storage pool.
             See U(https://documentation.ubuntu.com/lxd/en/latest/projects/).'
-        required: false
         type: str
     driver:
         description:
@@ -42,26 +42,22 @@ options:
             See U(https://documentation.ubuntu.com/lxd/en/latest/reference/storage_drivers/).'
           - Common drivers include V(dir), V(zfs), V(btrfs), V(lvm), V(ceph).
         type: str
-        required: false
     config:
         description:
           - 'Configuration for the storage pool.
             See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
           - This can include driver-specific options like V(size), V(source), etc.
         type: dict
-        required: false
     description:
         description:
           - Description of the storage pool.
         type: str
-        required: false
     state:
         choices:
           - present
           - absent
         description:
           - Define the state of the storage pool.
-        required: false
         default: present
         type: str
     target:
@@ -69,31 +65,26 @@ options:
           - For cluster deployments. Will attempt to create a storage pool on a target node.
           - The name should match the node name you see in C(lxc cluster list).
         type: str
-        required: false
     url:
         description:
           - The unix domain socket path or the https URL for the LXD server.
-        required: false
         default: unix:/var/lib/lxd/unix.socket
         type: str
     snap_url:
         description:
           - The unix domain socket path when LXD is installed by snap package manager.
-        required: false
         default: unix:/var/snap/lxd/common/lxd/unix.socket
         type: str
     client_key:
         description:
           - The client certificate key file path.
           - If not specified, it defaults to C(${HOME}/.config/lxc/client.key).
-        required: false
         aliases: [ key_file ]
         type: path
     client_cert:
         description:
           - The client certificate file path.
           - If not specified, it defaults to C(${HOME}/.config/lxc/client.crt).
-        required: false
         aliases: [ cert_file ]
         type: path
     trust_password:
@@ -105,14 +96,13 @@ options:
             See U(https://www.stgraber.org/2016/04/18/lxd-api-direct-interaction/).'
           - If trust_password is set, this module sends a request for
             authentication before sending any requests.
-        required: false
         type: str
 notes:
   - Storage pools must have unique names within their scope.
   - Storage pools can use various backend drivers (dir, zfs, btrfs, lvm, ceph).
-'''
+"""
 
-EXAMPLES = '''
+EXAMPLES = """
 # Create a directory-based storage pool
 - name: Create a dir storage pool
   community.general.lxd_storage_pool:
@@ -163,9 +153,9 @@ EXAMPLES = '''
     config:
       source: /dev/sdb
     state: present
-'''
+"""
 
-RETURN = '''
+RETURN = """
 old_state:
   description: The old state of the storage pool.
   returned: success
@@ -181,25 +171,25 @@ actions:
   returned: success
   type: list
   sample: ["create"]
-'''
+"""
 
 import os
+
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.general.plugins.module_utils.lxd import LXDClient, LXDClientException
 from ansible.module_utils.six.moves.urllib.parse import urlencode
+from ansible_collections.community.general.plugins.module_utils.lxd import (
+    LXDClient,
+    LXDClientException,
+)
 
 # ANSIBLE_LXD_DEFAULT_URL is a default value of the lxd endpoint
-ANSIBLE_LXD_DEFAULT_URL = 'unix:/var/lib/lxd/unix.socket'
+ANSIBLE_LXD_DEFAULT_URL = "unix:/var/lib/lxd/unix.socket"
 
 # STORAGE_STATES is a list for states supported
-STORAGE_STATES = [
-    'present', 'absent'
-]
+STORAGE_STATES = ["present", "absent"]
 
 # CONFIG_PARAMS is a list of config attribute names.
-CONFIG_PARAMS = [
-    'config', 'description', 'driver'
-]
+CONFIG_PARAMS = ["config", "description", "driver"]
 
 
 class LXDStoragePoolManagement(object):
@@ -210,42 +200,41 @@ class LXDStoragePoolManagement(object):
         :type module: ``object``
         """
         self.module = module
-        self.name = self.module.params['name']
-        self.project = self.module.params['project']
+        self.name = self.module.params["name"]
+        self.project = self.module.params["project"]
         self._build_config()
 
-        self.state = self.module.params['state']
-        self.target = self.module.params.get('target', None)
+        self.state = self.module.params["state"]
+        self.target = self.module.params.get("target", None)
 
-        self.key_file = self.module.params.get('client_key')
+        self.key_file = self.module.params.get("client_key")
         if self.key_file is None:
-            self.key_file = '{0}/.config/lxc/client.key'.format(os.environ['HOME'])
-        self.cert_file = self.module.params.get('client_cert')
+            self.key_file = f"{os.environ['HOME']}/.config/lxc/client.key"
+        self.cert_file = self.module.params.get("client_cert")
         if self.cert_file is None:
-            self.cert_file = '{0}/.config/lxc/client.crt'.format(os.environ['HOME'])
+            self.cert_file = f"{os.environ['HOME']}/.config/lxc/client.crt"
         self.debug = self.module._verbosity >= 4
 
-        try:
-            if self.module.params['url'] != ANSIBLE_LXD_DEFAULT_URL:
-                self.url = self.module.params['url']
-            elif os.path.exists(self.module.params['snap_url'].replace('unix:', '')):
-                self.url = self.module.params['snap_url']
-            else:
-                self.url = self.module.params['url']
-        except Exception as e:
-            self.module.fail_json(msg=str(e))
+        if self.module.params["url"] != ANSIBLE_LXD_DEFAULT_URL:
+            self.url = self.module.params["url"]
+        elif os.path.exists(self.module.params["snap_url"].replace("unix:", "")):
+            self.url = self.module.params["snap_url"]
+        else:
+            self.url = self.module.params["url"]
 
         try:
             self.client = LXDClient(
-                self.url, key_file=self.key_file, cert_file=self.cert_file,
-                debug=self.debug
+                self.url,
+                key_file=self.key_file,
+                cert_file=self.cert_file,
+                debug=self.debug,
             )
         except LXDClientException as e:
             self.module.fail_json(msg=e.msg)
 
-        self.trust_password = self.module.params.get('trust_password', None)
+        self.trust_password = self.module.params.get("trust_password", None)
         self.actions = []
-        self.diff = {'before': {}, 'after': {}}
+        self.diff = {"before": {}, "after": {}}
         self.old_pool_json = {}
 
     def _build_config(self):
@@ -256,55 +245,55 @@ class LXDStoragePoolManagement(object):
                 self.config[attr] = param_val
 
     def _get_storage_pool_json(self):
-        url = '/1.0/storage-pools/{0}'.format(self.name)
+        url = f"/1.0/storage-pools/{self.name}"
         if self.project:
-            url = '{0}?{1}'.format(url, urlencode(dict(project=self.project)))
-        return self.client.do('GET', url, ok_error_codes=[404])
+            url = f"{url}?{urlencode(dict(project=self.project))}"
+        return self.client.do("GET", url, ok_error_codes=[404])
 
     @staticmethod
     def _pool_json_to_module_state(resp_json):
-        if resp_json['type'] == 'error':
-            return 'absent'
-        return 'present'
+        if resp_json["type"] == "error":
+            return "absent"
+        return "present"
 
     def _create_storage_pool(self):
-        url = '/1.0/storage-pools'
+        url = "/1.0/storage-pools"
         url_params = dict()
         if self.target:
-            url_params['target'] = self.target
+            url_params["target"] = self.target
         if self.project:
-            url_params['project'] = self.project
+            url_params["project"] = self.project
         if url_params:
-            url = '{0}?{1}'.format(url, urlencode(url_params))
-        
+            url = f"{url}?{urlencode(url_params)}"
+
         config = self.config.copy()
-        config['name'] = self.name
-        
+        config["name"] = self.name
+
         # Driver is required for pool creation
-        if 'driver' not in config:
-            self.module.fail_json(msg='driver is required when creating a storage pool')
-        
+        if "driver" not in config:
+            self.module.fail_json(msg="driver is required when creating a storage pool")
+
         if not self.module.check_mode:
-            self.client.do('POST', url, config)
-        self.actions.append('create')
+            self.client.do("POST", url, config)
+        self.actions.append("create")
 
     def _delete_storage_pool(self):
-        url = '/1.0/storage-pools/{0}'.format(self.name)
+        url = f"/1.0/storage-pools/{self.name}"
         if self.project:
-            url = '{0}?{1}'.format(url, urlencode(dict(project=self.project)))
+            url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
-            self.client.do('DELETE', url)
-        self.actions.append('delete')
+            self.client.do("DELETE", url)
+        self.actions.append("delete")
 
     def _needs_to_change_config(self, key):
         if key not in self.config:
             return False
-        
-        old_configs = self.old_pool_json.get('metadata', {}).get(key, None)
-        
-        if key == 'config':
+
+        old_configs = self.old_pool_json.get("metadata", {}).get(key, None)
+
+        if key == "config":
             old_config = dict(old_configs or {})
-            for k, v in self.config['config'].items():
+            for k, v in self.config["config"].items():
                 if k not in old_config:
                     return True
                 if old_config[k] != v:
@@ -315,7 +304,7 @@ class LXDStoragePoolManagement(object):
 
     def _needs_to_apply_configs(self):
         for param in CONFIG_PARAMS:
-            if param == 'driver':
+            if param == "driver":
                 # Driver cannot be changed after creation
                 continue
             if self._needs_to_change_config(param):
@@ -323,44 +312,44 @@ class LXDStoragePoolManagement(object):
         return False
 
     def _apply_storage_pool_configs(self):
-        old_metadata = self.old_pool_json.get('metadata', {})
+        old_metadata = self.old_pool_json.get("metadata", {})
         body_json = {}
-        
+
         for param in CONFIG_PARAMS:
-            if param == 'driver':
+            if param == "driver":
                 # Driver cannot be changed
                 if param in old_metadata:
                     body_json[param] = old_metadata[param]
                 continue
-            
+
             if param in old_metadata:
                 body_json[param] = old_metadata[param]
-            
+
             if self._needs_to_change_config(param):
-                if param == 'config':
-                    body_json['config'] = body_json.get('config', {})
-                    for k, v in self.config['config'].items():
-                        body_json['config'][k] = v
+                if param == "config":
+                    body_json["config"] = body_json.get("config", {})
+                    for k, v in self.config["config"].items():
+                        body_json["config"][k] = v
                 else:
                     body_json[param] = self.config[param]
-        
-        self.diff['after'] = body_json
-        url = '/1.0/storage-pools/{0}'.format(self.name)
+
+        self.diff["after"] = body_json
+        url = f"/1.0/storage-pools/{self.name}"
         if self.project:
-            url = '{0}?{1}'.format(url, urlencode(dict(project=self.project)))
+            url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
-            self.client.do('PUT', url, body_json=body_json)
-        self.actions.append('apply_configs')
+            self.client.do("PUT", url, body_json=body_json)
+        self.actions.append("apply_configs")
 
     def _manage_state(self):
-        if self.state == 'present':
-            if self.old_state == 'absent':
+        if self.state == "present":
+            if self.old_state == "absent":
                 self._create_storage_pool()
             else:
                 if self._needs_to_apply_configs():
                     self._apply_storage_pool_configs()
-        elif self.state == 'absent':
-            if self.old_state == 'present':
+        elif self.state == "absent":
+            if self.old_state == "present":
                 self._delete_storage_pool()
 
     def run(self):
@@ -373,38 +362,38 @@ class LXDStoragePoolManagement(object):
             # Get current state of the pool
             self.old_pool_json = self._get_storage_pool_json()
             self.old_state = self._pool_json_to_module_state(self.old_pool_json)
-            
+
             # Set up diff
-            if self.old_state == 'present':
-                self.diff['before'] = self.old_pool_json.get('metadata', {})
+            if self.old_state == "present":
+                self.diff["before"] = self.old_pool_json.get("metadata", {})
             else:
-                self.diff['before'] = {}
-            
-            self.diff['after'] = self.config
+                self.diff["before"] = {}
+
+            self.diff["after"] = self.config
 
             # Manage the pool state
             self._manage_state()
 
             state_changed = len(self.actions) > 0
             result_json = {
-                'changed': state_changed,
-                'old_state': self.old_state,
-                'actions': self.actions,
-                'diff': self.diff,
+                "changed": state_changed,
+                "old_state": self.old_state,
+                "actions": self.actions,
+                "diff": self.diff,
             }
             if self.client.debug:
-                result_json['logs'] = self.client.logs
+                result_json["logs"] = self.client.logs
             self.module.exit_json(**result_json)
         except LXDClientException as e:
             state_changed = len(self.actions) > 0
             fail_params = {
-                'msg': e.msg,
-                'changed': state_changed,
-                'actions': self.actions,
-                'diff': self.diff,
+                "msg": e.msg,
+                "changed": state_changed,
+                "actions": self.actions,
+                "diff": self.diff,
             }
             if self.client.debug:
-                fail_params['logs'] = e.kwargs.get('logs', [])
+                fail_params["logs"] = e.kwargs.get("logs", [])
             self.module.fail_json(**fail_params)
 
 
@@ -414,45 +403,45 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             name=dict(
-                type='str',
+                type="str",
                 required=True,
             ),
             project=dict(
-                type='str',
+                type="str",
             ),
             driver=dict(
-                type='str',
+                type="str",
             ),
             config=dict(
-                type='dict',
+                type="dict",
             ),
             description=dict(
-                type='str',
+                type="str",
             ),
             state=dict(
                 choices=STORAGE_STATES,
-                default='present',
+                default="present",
             ),
             target=dict(
-                type='str',
+                type="str",
             ),
             url=dict(
-                type='str',
+                type="str",
                 default=ANSIBLE_LXD_DEFAULT_URL,
             ),
             snap_url=dict(
-                type='str',
-                default='unix:/var/snap/lxd/common/lxd/unix.socket',
+                type="str",
+                default="unix:/var/snap/lxd/common/lxd/unix.socket",
             ),
             client_key=dict(
-                type='path',
-                aliases=['key_file'],
+                type="path",
+                aliases=["key_file"],
             ),
             client_cert=dict(
-                type='path',
-                aliases=['cert_file'],
+                type="path",
+                aliases=["cert_file"],
             ),
-            trust_password=dict(type='str', no_log=True),
+            trust_password=dict(type="str", no_log=True),
         ),
         supports_check_mode=True,
     )
@@ -461,5 +450,5 @@ def main():
     lxd_manage.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

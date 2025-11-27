@@ -3,11 +3,11 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  
+
   vars:
     test_pool: integration-test-pool
     lxd_socket: unix:/var/snap/lxd/common/lxd/unix.socket
-  
+
   tasks:
     - name: Test 1 - Create storage pool (check mode)
       community.general.lxd_storage_pool:
@@ -20,15 +20,15 @@
         snap_url: "{{ lxd_socket }}"
       check_mode: true
       register: pool_check
-      
+
     - name: Verify check mode did not create pool
       assert:
         that:
-          - pool_check.changed == true
+          - pool_check is changed
           - pool_check.old_state == "absent"
           - "'create' in pool_check.actions"
-        fail_msg: "Check mode should show changes but not apply them"
-        
+        fail_msg: Check mode should show changes but not apply them
+
     - name: Test 2 - Create storage pool (actual)
       community.general.lxd_storage_pool:
         name: "{{ test_pool }}"
@@ -39,15 +39,15 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: pool_create
-      
+
     - name: Verify pool creation
       assert:
         that:
-          - pool_create.changed == true
+          - pool_create is changed
           - pool_create.old_state == "absent"
           - "'create' in pool_create.actions"
-        fail_msg: "Pool should have been created"
-        
+        fail_msg: Pool should have been created
+
     - name: Test 3 - Update pool description (idempotent test)
       community.general.lxd_storage_pool:
         name: "{{ test_pool }}"
@@ -55,15 +55,15 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: pool_idempotent
-      
+
     - name: Verify idempotency
       assert:
         that:
-          - pool_idempotent.changed == false
+          - pool_idempotent is not changed
           - pool_idempotent.old_state == "present"
           - pool_idempotent.actions | length == 0
-        fail_msg: "Pool should not have changed"
-        
+        fail_msg: Pool should not have changed
+
     - name: Test 4 - Update pool description (actual change)
       community.general.lxd_storage_pool:
         name: "{{ test_pool }}"
@@ -71,45 +71,45 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: pool_update
-      
+
     - name: Verify pool update
       assert:
         that:
-          - pool_update.changed == true
+          - pool_update is changed
           - pool_update.old_state == "present"
           - "'apply_configs' in pool_update.actions"
-        fail_msg: "Pool description should have been updated"
-        
+        fail_msg: Pool description should have been updated
+
     - name: Test 5 - Delete pool
       community.general.lxd_storage_pool:
         name: "{{ test_pool }}"
         state: absent
         snap_url: "{{ lxd_socket }}"
       register: pool_delete
-      
+
     - name: Verify pool deletion
       assert:
         that:
-          - pool_delete.changed == true
+          - pool_delete is changed
           - pool_delete.old_state == "present"
           - "'delete' in pool_delete.actions"
-        fail_msg: "Pool should have been deleted"
-        
+        fail_msg: Pool should have been deleted
+
     - name: Test 6 - Delete idempotency (pool already gone)
       community.general.lxd_storage_pool:
         name: "{{ test_pool }}"
         state: absent
         snap_url: "{{ lxd_socket }}"
       register: pool_delete_idempotent
-      
+
     - name: Verify deletion idempotency
       assert:
         that:
-          - pool_delete_idempotent.changed == false
+          - pool_delete_idempotent is not changed
           - pool_delete_idempotent.old_state == "absent"
           - pool_delete_idempotent.actions | length == 0
-        fail_msg: "Pool deletion should be idempotent"
-        
+        fail_msg: Pool deletion should be idempotent
+
     - name: "=== ALL POOL TESTS PASSED ==="
       debug:
         msg: |
@@ -119,5 +119,5 @@
           ✓ Storage pool descriptions can be updated
           ✓ Storage pools can be deleted
           ✓ Deletion is idempotent
-          
+
           All storage pool tests passed!

@@ -3,13 +3,13 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  
+
   vars:
     test_pool: integration-test-pool
     test_fs_volume: test-fs-volume
     test_block_volume: test-block-volume
     lxd_socket: unix:/var/snap/lxd/common/lxd/unix.socket
-  
+
   tasks:
     # Setup - Create a test pool
     - name: Setup - Create storage pool for volume tests
@@ -21,7 +21,7 @@
         description: "Pool for volume testing"
         state: present
         snap_url: "{{ lxd_socket }}"
-    
+
     # Filesystem Volume Tests
     - name: Test 1 - Create filesystem volume (check mode)
       community.general.lxd_storage_volume:
@@ -36,14 +36,14 @@
         snap_url: "{{ lxd_socket }}"
       check_mode: true
       register: fs_volume_check
-      
+
     - name: Verify check mode did not create filesystem volume
       assert:
         that:
-          - fs_volume_check.changed == true
+          - fs_volume_check is changed
           - fs_volume_check.old_state == "absent"
           - "'create' in fs_volume_check.actions"
-        
+
     - name: Test 2 - Create filesystem volume (actual)
       community.general.lxd_storage_volume:
         name: "{{ test_fs_volume }}"
@@ -56,14 +56,14 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: fs_volume_create
-      
+
     - name: Verify filesystem volume creation
       assert:
         that:
-          - fs_volume_create.changed == true
+          - fs_volume_create is changed
           - fs_volume_create.old_state == "absent"
           - "'create' in fs_volume_create.actions"
-        
+
     - name: Test 3 - Filesystem volume idempotency
       community.general.lxd_storage_volume:
         name: "{{ test_fs_volume }}"
@@ -74,13 +74,13 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: fs_volume_idempotent
-      
+
     - name: Verify filesystem volume idempotency
       assert:
         that:
-          - fs_volume_idempotent.changed == false
+          - fs_volume_idempotent is not changed
           - fs_volume_idempotent.actions | length == 0
-        
+
     - name: Test 4 - Increase filesystem volume size
       community.general.lxd_storage_volume:
         name: "{{ test_fs_volume }}"
@@ -90,13 +90,13 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: fs_volume_resize
-      
+
     - name: Verify filesystem volume resize
       assert:
         that:
-          - fs_volume_resize.changed == true
+          - fs_volume_resize is changed
           - "'apply_configs' in fs_volume_resize.actions"
-        
+
     # Block Volume Tests
     - name: Test 5 - Create block volume
       community.general.lxd_storage_volume:
@@ -110,14 +110,14 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: block_volume_create
-      
+
     - name: Verify block volume creation
       assert:
         that:
-          - block_volume_create.changed == true
+          - block_volume_create is changed
           - block_volume_create.old_state == "absent"
           - "'create' in block_volume_create.actions"
-        
+
     - name: Test 6 - Block volume idempotency
       community.general.lxd_storage_volume:
         name: "{{ test_block_volume }}"
@@ -129,13 +129,13 @@
         state: present
         snap_url: "{{ lxd_socket }}"
       register: block_volume_idempotent
-      
+
     - name: Verify block volume idempotency
       assert:
         that:
-          - block_volume_idempotent.changed == false
+          - block_volume_idempotent is not changed
           - block_volume_idempotent.actions | length == 0
-        
+
     # Cleanup
     - name: Cleanup - Delete filesystem volume
       community.general.lxd_storage_volume:
@@ -143,20 +143,20 @@
         pool: "{{ test_pool }}"
         state: absent
         snap_url: "{{ lxd_socket }}"
-      
+
     - name: Cleanup - Delete block volume
       community.general.lxd_storage_volume:
         name: "{{ test_block_volume }}"
         pool: "{{ test_pool }}"
         state: absent
         snap_url: "{{ lxd_socket }}"
-      
+
     - name: Cleanup - Delete storage pool
       community.general.lxd_storage_pool:
         name: "{{ test_pool }}"
         state: absent
         snap_url: "{{ lxd_socket }}"
-        
+
     - name: "=== ALL VOLUME TESTS PASSED ==="
       debug:
         msg: |
@@ -166,5 +166,5 @@
           ✓ Filesystem volumes can be resized
           ✓ Block volumes can be created
           ✓ Block volumes show idempotency
-          
+
           All storage volume tests passed!
