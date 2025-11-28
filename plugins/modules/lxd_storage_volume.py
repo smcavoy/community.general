@@ -223,8 +223,9 @@ actions:
   sample: ["create", "migrate", "apply_configs", "delete"]
 """
 
+# ruff: noqa: E402
 import os
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.general.plugins.module_utils.lxd import (
@@ -244,12 +245,12 @@ STORAGE_STATES = ["present", "absent"]
 CONFIG_PARAMS = ["config", "description"]
 
 
-class LXDStorageVolumeManagement(object):
-    def __init__(self, module):
+class LXDStorageVolumeManagement:
+    def __init__(self, module: AnsibleModule) -> None:
         """Management of LXD storage volumes via Ansible.
 
         :param module: Processed Ansible Module.
-        :type module: ``object``
+        :type module: AnsibleModule
         """
         self.module = module
         self.name = self.module.params["name"]
@@ -297,7 +298,7 @@ class LXDStorageVolumeManagement(object):
         self.diff = {"before": {}, "after": {}}
         self.old_volume_json = {}
 
-    def _fail_from_lxd_exception(self, exception):
+    def _fail_from_lxd_exception(self, exception: LXDClientException) -> None:
         """Build failure parameters from LXDClientException and fail.
 
         :param exception: The LXDClientException instance
@@ -313,26 +314,26 @@ class LXDStorageVolumeManagement(object):
             fail_params["logs"] = exception.kwargs["logs"]
         self.module.fail_json(**fail_params)
 
-    def _build_config(self):
+    def _build_config(self) -> None:
         self.config = {}
         for attr in CONFIG_PARAMS:
             param_val = self.module.params.get(attr, None)
             if param_val is not None:
                 self.config[attr] = param_val
 
-    def _get_storage_volume_json(self):
-        url = f"/1.0/storage-pools/{self.pool}/volumes/{self.volume_type}/{self.name}"
+    def _get_storage_volume_json(self) -> dict:
+        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         return self.client.do("GET", url, ok_error_codes=[404])
 
     @staticmethod
-    def _volume_json_to_module_state(resp_json):
+    def _volume_json_to_module_state(resp_json: dict) -> str:
         if resp_json["type"] == "error":
             return "absent"
         return "present"
 
-    def _create_storage_volume(self):
+    def _create_storage_volume(self) -> None:
         url = f"/1.0/storage-pools/{self.pool}/volumes/{self.volume_type}"
         url_params = dict()
         if self.target:
@@ -355,15 +356,15 @@ class LXDStorageVolumeManagement(object):
             self.client.do("POST", url, config)
         self.actions.append("create")
 
-    def _delete_storage_volume(self):
-        url = f"/1.0/storage-pools/{self.pool}/volumes/{self.volume_type}/{self.name}"
+    def _delete_storage_volume(self) -> None:
+        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
             self.client.do("DELETE", url)
         self.actions.append("delete")
 
-    def _needs_to_migrate_volume(self):
+    def _needs_to_migrate_volume(self) -> bool:
         """Check if volume needs to be migrated to a different cluster member."""
         if not self.target:
             return False
@@ -378,9 +379,9 @@ class LXDStorageVolumeManagement(object):
 
         return False
 
-    def _migrate_storage_volume(self):
+    def _migrate_storage_volume(self) -> None:
         """Migrate volume to a different cluster member using POST with target parameter."""
-        url = f"/1.0/storage-pools/{self.pool}/volumes/{self.volume_type}/{self.name}"
+        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         url_params = dict(target=self.target)
         if self.project:
             url_params["project"] = self.project
@@ -391,7 +392,7 @@ class LXDStorageVolumeManagement(object):
             self.client.do("POST", url, body_json={})
         self.actions.append("migrate")
 
-    def _needs_to_change_config(self, key):
+    def _needs_to_change_config(self, key: str) -> bool:
         if key not in self.config:
             return False
 
@@ -408,13 +409,13 @@ class LXDStorageVolumeManagement(object):
         else:
             return self.config[key] != old_configs
 
-    def _needs_to_apply_configs(self):
+    def _needs_to_apply_configs(self) -> bool:
         for param in CONFIG_PARAMS:
             if self._needs_to_change_config(param):
                 return True
         return False
 
-    def _apply_storage_volume_configs(self):
+    def _apply_storage_volume_configs(self) -> None:
         old_metadata = self.old_volume_json.get("metadata", {})
         body_json = {}
 
@@ -431,14 +432,14 @@ class LXDStorageVolumeManagement(object):
                     body_json[param] = self.config[param]
 
         self.diff["after"] = body_json
-        url = f"/1.0/storage-pools/{self.pool}/volumes/{self.volume_type}/{self.name}"
+        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
             self.client.do("PUT", url, body_json=body_json)
         self.actions.append("apply_configs")
 
-    def _manage_state(self):
+    def _manage_state(self) -> None:
         if self.state == "present":
             if self.old_state == "absent":
                 self._create_storage_volume()
@@ -453,7 +454,7 @@ class LXDStorageVolumeManagement(object):
             if self.old_state == "present":
                 self._delete_storage_volume()
 
-    def run(self):
+    def run(self) -> None:
         """Run the main method."""
 
         try:
@@ -489,7 +490,7 @@ class LXDStorageVolumeManagement(object):
             self._fail_from_lxd_exception(e)
 
 
-def main():
+def main() -> None:
     """Ansible Main module."""
 
     module = AnsibleModule(

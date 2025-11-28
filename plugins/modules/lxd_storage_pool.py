@@ -173,8 +173,9 @@ actions:
   sample: ["create"]
 """
 
+# ruff: noqa: E402
 import os
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.general.plugins.module_utils.lxd import (
@@ -194,12 +195,12 @@ STORAGE_STATES = ["present", "absent"]
 CONFIG_PARAMS = ["config", "description", "driver"]
 
 
-class LXDStoragePoolManagement(object):
-    def __init__(self, module):
+class LXDStoragePoolManagement:
+    def __init__(self, module: AnsibleModule) -> None:
         """Management of LXD storage pools via Ansible.
 
         :param module: Processed Ansible Module.
-        :type module: ``object``
+        :type module: AnsibleModule
         """
         self.module = module
         self.name = self.module.params["name"]
@@ -243,7 +244,7 @@ class LXDStoragePoolManagement(object):
         self.diff = {"before": {}, "after": {}}
         self.old_pool_json = {}
 
-    def _fail_from_lxd_exception(self, exception):
+    def _fail_from_lxd_exception(self, exception: LXDClientException) -> None:
         """Build failure parameters from LXDClientException and fail.
 
         :param exception: The LXDClientException instance
@@ -259,26 +260,26 @@ class LXDStoragePoolManagement(object):
             fail_params["logs"] = exception.kwargs["logs"]
         self.module.fail_json(**fail_params)
 
-    def _build_config(self):
+    def _build_config(self) -> None:
         self.config = {}
         for attr in CONFIG_PARAMS:
             param_val = self.module.params.get(attr, None)
             if param_val is not None:
                 self.config[attr] = param_val
 
-    def _get_storage_pool_json(self):
-        url = f"/1.0/storage-pools/{self.name}"
+    def _get_storage_pool_json(self) -> dict:
+        url = f"/1.0/storage-pools/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         return self.client.do("GET", url, ok_error_codes=[404])
 
     @staticmethod
-    def _pool_json_to_module_state(resp_json):
+    def _pool_json_to_module_state(resp_json: dict) -> str:
         if resp_json["type"] == "error":
             return "absent"
         return "present"
 
-    def _create_storage_pool(self):
+    def _create_storage_pool(self) -> None:
         url = "/1.0/storage-pools"
         url_params = dict()
         if self.target:
@@ -299,15 +300,15 @@ class LXDStoragePoolManagement(object):
             self.client.do("POST", url, config)
         self.actions.append("create")
 
-    def _delete_storage_pool(self):
-        url = f"/1.0/storage-pools/{self.name}"
+    def _delete_storage_pool(self) -> None:
+        url = f"/1.0/storage-pools/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
             self.client.do("DELETE", url)
         self.actions.append("delete")
 
-    def _needs_to_change_config(self, key):
+    def _needs_to_change_config(self, key: str) -> bool:
         if key not in self.config:
             return False
 
@@ -324,7 +325,7 @@ class LXDStoragePoolManagement(object):
         else:
             return self.config[key] != old_configs
 
-    def _needs_to_apply_configs(self):
+    def _needs_to_apply_configs(self) -> bool:
         for param in CONFIG_PARAMS:
             if param == "driver":
                 # Driver cannot be changed after creation
@@ -333,7 +334,7 @@ class LXDStoragePoolManagement(object):
                 return True
         return False
 
-    def _apply_storage_pool_configs(self):
+    def _apply_storage_pool_configs(self) -> None:
         old_metadata = self.old_pool_json.get("metadata", {})
         body_json = {}
 
@@ -356,14 +357,14 @@ class LXDStoragePoolManagement(object):
                     body_json[param] = self.config[param]
 
         self.diff["after"] = body_json
-        url = f"/1.0/storage-pools/{self.name}"
+        url = f"/1.0/storage-pools/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
             self.client.do("PUT", url, body_json=body_json)
         self.actions.append("apply_configs")
 
-    def _manage_state(self):
+    def _manage_state(self) -> None:
         if self.state == "present":
             if self.old_state == "absent":
                 self._create_storage_pool()
@@ -374,7 +375,7 @@ class LXDStoragePoolManagement(object):
             if self.old_state == "present":
                 self._delete_storage_pool()
 
-    def run(self):
+    def run(self) -> None:
         """Run the main method."""
 
         try:
@@ -410,7 +411,7 @@ class LXDStoragePoolManagement(object):
             self._fail_from_lxd_exception(e)
 
 
-def main():
+def main() -> None:
     """Ansible Main module."""
 
     module = AnsibleModule(
