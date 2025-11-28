@@ -224,12 +224,14 @@ actions:
 """
 
 import os
+from urllib.parse import urlencode
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.six.moves.urllib.parse import urlencode
 from ansible_collections.community.general.plugins.module_utils.lxd import (
     LXDClient,
     LXDClientException,
+    default_cert_file,
+    default_key_file,
 )
 
 # ANSIBLE_LXD_DEFAULT_URL is a default value of the lxd endpoint
@@ -262,15 +264,20 @@ class LXDStorageVolumeManagement(object):
 
         self.key_file = self.module.params.get("client_key")
         if self.key_file is None:
-            self.key_file = f"{os.environ['HOME']}/.config/lxc/client.key"
+            self.key_file = default_key_file()
         self.cert_file = self.module.params.get("client_cert")
         if self.cert_file is None:
-            self.cert_file = f"{os.environ['HOME']}/.config/lxc/client.crt"
+            self.cert_file = default_cert_file()
         self.debug = self.module._verbosity >= 4
+
+        # check if domain socket to be used
+        snap_socket_path = self.module.params["snap_url"]
+        if snap_socket_path.startswith("unix:"):
+            snap_socket_path = snap_socket_path[5:]
 
         if self.module.params["url"] != ANSIBLE_LXD_DEFAULT_URL:
             self.url = self.module.params["url"]
-        elif os.path.exists(self.module.params["snap_url"].replace("unix:", "")):
+        elif os.path.exists(snap_socket_path):
             self.url = self.module.params["snap_url"]
         else:
             self.url = self.module.params["url"]
@@ -283,12 +290,28 @@ class LXDStorageVolumeManagement(object):
                 debug=self.debug,
             )
         except LXDClientException as e:
-            self.module.fail_json(msg=e.msg)
+            self._fail_from_lxd_exception(e)
 
         self.trust_password = self.module.params.get("trust_password", None)
         self.actions = []
         self.diff = {"before": {}, "after": {}}
         self.old_volume_json = {}
+
+    def _fail_from_lxd_exception(self, exception):
+        """Build failure parameters from LXDClientException and fail.
+
+        :param exception: The LXDClientException instance
+        :type exception: LXDClientException
+        """
+        fail_params = {
+            "msg": exception.msg,
+            "changed": len(self.actions) > 0,
+            "actions": self.actions,
+            "diff": self.diff,
+        }
+        if self.client.debug and "logs" in exception.kwargs:
+            fail_params["logs"] = exception.kwargs["logs"]
+        self.module.fail_json(**fail_params)
 
     def _build_config(self):
         self.config = {}
@@ -463,16 +486,7 @@ class LXDStorageVolumeManagement(object):
                 result_json["logs"] = self.client.logs
             self.module.exit_json(**result_json)
         except LXDClientException as e:
-            state_changed = len(self.actions) > 0
-            fail_params = {
-                "msg": e.msg,
-                "changed": state_changed,
-                "actions": self.actions,
-                "diff": self.diff,
-            }
-            if self.client.debug:
-                fail_params["logs"] = e.kwargs.get("logs", [])
-            self.module.fail_json(**fail_params)
+            self._fail_from_lxd_exception(e)
 
 
 def main():
