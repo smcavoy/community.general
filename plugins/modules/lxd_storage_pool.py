@@ -72,7 +72,7 @@ options:
         type: str
     snap_url:
         description:
-          - The unix domain socket path when LXD is installed by snap package manager.
+          - The Unix domain socket path when LXD is installed by snap package manager.
         default: unix:/var/snap/lxd/common/lxd/unix.socket
         type: str
     client_key:
@@ -187,6 +187,11 @@ from ansible_collections.community.general.plugins.module_utils.lxd import (
 
 # ANSIBLE_LXD_DEFAULT_URL is a default value of the lxd endpoint
 ANSIBLE_LXD_DEFAULT_URL = "unix:/var/lib/lxd/unix.socket"
+ANSIBLE_LXD_DEFAULT_SNAP_URL = "unix:/var/snap/lxd/common/lxd/unix.socket"
+
+# API endpoints
+LXD_API_VERSION = "1.0"
+LXD_API_STORAGE_POOLS_ENDPOINT = f"/{LXD_API_VERSION}/storage-pools"
 
 # STORAGE_STATES is a list for states supported
 STORAGE_STATES = ["present", "absent"]
@@ -268,7 +273,7 @@ class LXDStoragePoolManagement:
                 self.config[attr] = param_val
 
     def _get_storage_pool_json(self) -> dict:
-        url = f"/1.0/storage-pools/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         return self.client.do("GET", url, ok_error_codes=[404])
@@ -280,7 +285,7 @@ class LXDStoragePoolManagement:
         return "present"
 
     def _create_storage_pool(self) -> None:
-        url = "/1.0/storage-pools"
+        url = LXD_API_STORAGE_POOLS_ENDPOINT
         url_params = dict()
         if self.target:
             url_params["target"] = self.target
@@ -301,7 +306,7 @@ class LXDStoragePoolManagement:
         self.actions.append("create")
 
     def _delete_storage_pool(self) -> None:
-        url = f"/1.0/storage-pools/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
@@ -357,7 +362,7 @@ class LXDStoragePoolManagement:
                     body_json[param] = self.config[param]
 
         self.diff["after"] = body_json
-        url = f"/1.0/storage-pools/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
@@ -445,7 +450,7 @@ def main() -> None:
             ),
             snap_url=dict(
                 type="str",
-                default="unix:/var/snap/lxd/common/lxd/unix.socket",
+                default=ANSIBLE_LXD_DEFAULT_SNAP_URL,
             ),
             client_key=dict(
                 type="path",

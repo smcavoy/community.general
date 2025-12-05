@@ -89,9 +89,18 @@ options:
         description:
           - For cluster deployments. Specifies the cluster member where the volume should be located.
           - When creating a new volume, it will be created on the specified target node.
-          - When a volume already exists on a different cluster member, it will be migrated to the target node.
+          - When a volume already exists on a different cluster member, see O(allow_migrate) for migration behavior.
           - The name should match the node name you see in C(lxc cluster list).
         type: str
+    allow_migrate:
+        description:
+          - Allow migration of the volume to the specified O(target) if it exists on a different cluster member.
+          - If V(false) and the volume exists on a different node than O(target), the module will fail.
+          - If V(true) and the volume exists on a different node than O(target), the volume will be migrated.
+          - Only relevant when O(target) is specified and the volume already exists.
+          - Migration may cause temporary unavailability of the volume.
+        type: bool
+        default: false
     url:
         description:
           - The unix domain socket path or the https URL for the LXD server.
@@ -99,7 +108,7 @@ options:
         type: str
     snap_url:
         description:
-          - The unix domain socket path when LXD is installed by snap package manager.
+          - The Unix domain socket path when LXD is installed by snap package manager.
         default: unix:/var/snap/lxd/common/lxd/unix.socket
         type: str
     client_key:
@@ -202,6 +211,16 @@ EXAMPLES = """
     name: cluster-volume
     pool: my-pool
     target: node02
+    allow_migrate: true
+    state: present
+
+# Fail if volume is on wrong node (safety check)
+- name: Ensure volume is on node01 (fail if not)
+  community.general.lxd_storage_volume:
+    name: cluster-volume
+    pool: my-pool
+    target: node01
+    allow_migrate: false
     state: present
 """
 
@@ -237,6 +256,11 @@ from ansible_collections.community.general.plugins.module_utils.lxd import (
 
 # ANSIBLE_LXD_DEFAULT_URL is a default value of the lxd endpoint
 ANSIBLE_LXD_DEFAULT_URL = "unix:/var/lib/lxd/unix.socket"
+ANSIBLE_LXD_DEFAULT_SNAP_URL = "unix:/var/snap/lxd/common/lxd/unix.socket"
+
+# API endpoints
+LXD_API_VERSION = "1.0"
+LXD_API_STORAGE_POOLS_ENDPOINT = f"/{LXD_API_VERSION}/storage-pools"
 
 # STORAGE_STATES is a list for states supported
 STORAGE_STATES = ["present", "absent"]
@@ -262,6 +286,7 @@ class LXDStorageVolumeManagement:
 
         self.state = self.module.params["state"]
         self.target = self.module.params.get("target", None)
+        self.allow_migrate = self.module.params.get("allow_migrate", False)
 
         self.key_file = self.module.params.get("client_key")
         if self.key_file is None:
@@ -322,7 +347,7 @@ class LXDStorageVolumeManagement:
                 self.config[attr] = param_val
 
     def _get_storage_volume_json(self) -> dict:
-        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         return self.client.do("GET", url, ok_error_codes=[404])
@@ -334,7 +359,7 @@ class LXDStorageVolumeManagement:
         return "present"
 
     def _create_storage_volume(self) -> None:
-        url = f"/1.0/storage-pools/{self.pool}/volumes/{self.volume_type}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{self.pool}/volumes/{self.volume_type}"
         url_params = dict()
         if self.target:
             url_params["target"] = self.target
@@ -357,7 +382,7 @@ class LXDStorageVolumeManagement:
         self.actions.append("create")
 
     def _delete_storage_volume(self) -> None:
-        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
@@ -381,7 +406,7 @@ class LXDStorageVolumeManagement:
 
     def _migrate_storage_volume(self) -> None:
         """Migrate volume to a different cluster member using POST with target parameter."""
-        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         url_params = dict(target=self.target)
         if self.project:
             url_params["project"] = self.project
@@ -432,7 +457,7 @@ class LXDStorageVolumeManagement:
                     body_json[param] = self.config[param]
 
         self.diff["after"] = body_json
-        url = f"/1.0/storage-pools/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
+        url = f"{LXD_API_STORAGE_POOLS_ENDPOINT}/{quote(self.pool, safe='')}/volumes/{quote(self.volume_type, safe='')}/{quote(self.name, safe='')}"
         if self.project:
             url = f"{url}?{urlencode(dict(project=self.project))}"
         if not self.module.check_mode:
@@ -446,6 +471,16 @@ class LXDStorageVolumeManagement:
             else:
                 # Check if volume needs to be migrated to a different cluster member
                 if self._needs_to_migrate_volume():
+                    if not self.allow_migrate:
+                        old_metadata = self.old_volume_json.get("metadata", {})
+                        current_location = old_metadata.get("location", "unknown")
+                        self.module.fail_json(
+                            msg=f"Volume '{self.name}' exists on cluster member '{current_location}' but target is '{self.target}'. "
+                            f"Set allow_migrate=true to allow migration, or remove the target parameter.",
+                            changed=False,
+                            actions=self.actions,
+                            diff=self.diff,
+                        )
                     self._migrate_storage_volume()
                 # Apply config changes
                 if self._needs_to_apply_configs():
@@ -529,13 +564,17 @@ def main() -> None:
             target=dict(
                 type="str",
             ),
+            allow_migrate=dict(
+                type="bool",
+                default=False,
+            ),
             url=dict(
                 type="str",
                 default=ANSIBLE_LXD_DEFAULT_URL,
             ),
             snap_url=dict(
                 type="str",
-                default="unix:/var/snap/lxd/common/lxd/unix.socket",
+                default=ANSIBLE_LXD_DEFAULT_SNAP_URL,
             ),
             client_key=dict(
                 type="path",

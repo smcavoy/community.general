@@ -33,6 +33,12 @@ The integration tests verify:
 5. **Block Volume Creation**: Tests creating block-type custom storage volumes
 6. **Block Volume Idempotency**: Verifies unchanged block volumes don't trigger updates
 7. **Volume Deletion**: Tests deleting storage volumes
+8. **Volume Migration** (cluster only): Tests migrating volumes between cluster members
+   - Creating volumes on specific cluster nodes
+   - Blocking migration when `allow_migrate=false`
+   - Allowing migration when `allow_migrate=true`
+   - Migration idempotency
+   - Migration check mode
 
 ## Test Scenarios
 
@@ -46,6 +52,8 @@ The integration tests verify:
 ## Notes
 
 - Tests use the snap socket path by default (`unix:/var/snap/lxd/common/lxd/unix.socket`)
-- Tests create temporary resources prefixed with `test-`
+- Tests create temporary resources prefixed with `test-` or `integration-test-`
 - All test resources are cleaned up after successful test runs
 - Tests require root/sudo access to interact with LXD
+- Migration tests only run when LXD is configured as a cluster with 2+ nodes
+- Migration tests are automatically skipped on non-clustered LXD installations

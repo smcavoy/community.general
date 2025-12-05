@@ -136,6 +136,127 @@
           - block_volume_idempotent is not changed
           - block_volume_idempotent.actions | length == 0
 
+    # Migration Tests (only run if LXD is clustered)
+    - name: Check if LXD is clustered
+      ansible.builtin.command: lxc cluster list --format=json
+      register: cluster_check
+      failed_when: false
+      changed_when: false
+
+    - name: Parse cluster information
+      ansible.builtin.set_fact:
+        lxd_cluster_nodes: "{{ cluster_check.stdout | from_json }}"
+      when: cluster_check.rc == 0
+
+    - name: Set cluster test flag
+      ansible.builtin.set_fact:
+        is_clustered: "{{ lxd_cluster_nodes | default([]) | length > 1 }}"
+
+    - name: Migration test block
+      when: is_clustered | bool
+      block:
+        - name: Get current node name
+          ansible.builtin.set_fact:
+            current_node: "{{ lxd_cluster_nodes[0].server_name }}"
+            target_node: "{{ lxd_cluster_nodes[1].server_name }}"
+
+        - name: Test 7 - Create volume on specific cluster node
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ current_node }}"
+            config:
+              size: 1GiB
+            description: "Volume for migration testing"
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_create_targeted
+
+        - name: Verify volume created on target node
+          assert:
+            that:
+              - volume_create_targeted is changed
+              - "'create' in volume_create_targeted.actions"
+
+        - name: Test 8 - Attempt migration without allow_migrate (should fail)
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ target_node }}"
+            allow_migrate: false
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_migrate_blocked
+          failed_when: false
+
+        - name: Verify migration was blocked
+          assert:
+            that:
+              - volume_migrate_blocked is failed
+              - volume_migrate_blocked is not changed
+              - "'allow_migrate=true' in volume_migrate_blocked.msg"
+
+        - name: Test 9 - Migrate volume with allow_migrate=true
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ target_node }}"
+            allow_migrate: true
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_migrated
+
+        - name: Verify volume was migrated
+          assert:
+            that:
+              - volume_migrated is changed
+              - "'migrate' in volume_migrated.actions"
+
+        - name: Test 10 - Migration idempotency (no migration needed)
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ target_node }}"
+            allow_migrate: true
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_migrate_idempotent
+
+        - name: Verify no migration occurred
+          assert:
+            that:
+              - volume_migrate_idempotent is not changed
+              - "'migrate' not in volume_migrate_idempotent.actions"
+
+        - name: Test 11 - Migration in check mode
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ current_node }}"
+            allow_migrate: true
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          check_mode: true
+          register: volume_migrate_check
+
+        - name: Verify check mode shows migration would occur
+          assert:
+            that:
+              - volume_migrate_check is changed
+              - "'migrate' in volume_migrate_check.actions"
+
+        - name: Cleanup - Delete migration test volume
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            state: absent
+            snap_url: "{{ lxd_socket }}"
+
+    - name: Skip migration tests message
+      ansible.builtin.debug:
+        msg: "Skipping migration tests - LXD is not configured as a cluster or has only one node"
+      when: not (is_clustered | bool)
+
     # Cleanup
     - name: Cleanup - Delete filesystem volume
       community.general.lxd_storage_volume:
