@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2024, Sean McAvoy <smcavoy@users.noreply.github.com>
+# Copyright (c) 2024, Sean McAvoy <seanmcavoy@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -16,7 +16,7 @@ module: lxd_storage_pool
 short_description: Manage LXD storage pools
 version_added: 12.1.0
 description:
-  - Management of LXD storage pools.
+  - Manages LXD storage pools.
 author: "Sean McAvoy (@smcavoy)"
 extends_documentation_fragment:
   - community.general.attributes
@@ -46,7 +46,7 @@ options:
         description:
           - 'Configuration for the storage pool.
             See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
-          - This can include driver-specific options like V(size), V(source), etc.
+          - This can include driver-specific options like V(size), V(source), and so on.
         type: dict
     description:
         description:

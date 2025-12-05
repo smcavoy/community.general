@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2024, Sean McAvoy <smcavoy@users.noreply.github.com>
+# Copyright (c) 2024, Sean McAvoy <seanmcavoy@gmail.com>
 # GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -16,7 +16,7 @@ module: lxd_storage_volume
 short_description: Manage LXD storage volumes
 version_added: 12.1.0
 description:
-  - Management of LXD storage volumes.
+  - Manages LXD storage volumes.
   - Supports both filesystem and block content types.
 author: "Sean McAvoy (@smcavoy)"
 extends_documentation_fragment:
@@ -71,7 +71,7 @@ options:
         description:
           - 'Configuration for the storage volume.
             See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
-          - This can include V(size), V(snapshots.expiry), V(block.filesystem), V(block.mount_options), etc.
+          - This can include V(size), V(snapshots.expiry), V(block.filesystem), V(block.mount_options), and so on.
         type: dict
     description:
         description:
