@@ -21,82 +21,82 @@ author: "Sean McAvoy (@smcavoy)"
 extends_documentation_fragment:
   - community.general.attributes
 attributes:
-    check_mode:
-        support: full
-    diff_mode:
-        support: full
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
 options:
-    name:
-        description:
-          - Name of the storage pool.
-        type: str
-        required: true
-    project:
-        description:
-          - 'Project of the storage pool.
-            See U(https://documentation.ubuntu.com/lxd/en/latest/projects/).'
-        type: str
-    driver:
-        description:
-          - 'Storage pool driver (required when creating a pool).
-            See U(https://documentation.ubuntu.com/lxd/en/latest/reference/storage_drivers/).'
-          - Common drivers include V(dir), V(zfs), V(btrfs), V(lvm), V(ceph).
-        type: str
-    config:
-        description:
-          - 'Configuration for the storage pool.
-            See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
-          - This can include driver-specific options like V(size), V(source), and so on.
-        type: dict
+  name:
     description:
-        description:
-          - Description of the storage pool.
-        type: str
-    state:
-        choices:
-          - present
-          - absent
-        description:
-          - Define the state of the storage pool.
-        default: present
-        type: str
-    target:
-        description:
-          - For cluster deployments. Will attempt to create a storage pool on a target node.
-          - The name should match the node name you see in C(lxc cluster list).
-        type: str
-    url:
-        description:
-          - The unix domain socket path or the https URL for the LXD server.
-        default: unix:/var/lib/lxd/unix.socket
-        type: str
-    snap_url:
-        description:
-          - The Unix domain socket path when LXD is installed by snap package manager.
-        default: unix:/var/snap/lxd/common/lxd/unix.socket
-        type: str
-    client_key:
-        description:
-          - The client certificate key file path.
-          - If not specified, it defaults to C(${HOME}/.config/lxc/client.key).
-        aliases: [ key_file ]
-        type: path
-    client_cert:
-        description:
-          - The client certificate file path.
-          - If not specified, it defaults to C(${HOME}/.config/lxc/client.crt).
-        aliases: [ cert_file ]
-        type: path
-    trust_password:
-        description:
-          - The client trusted password.
-          - 'You need to set this password on the LXD server before
-            running this module using the following command:
-            C(lxc config set core.trust_password <some random password>).
-            See U(https://www.stgraber.org/2016/04/18/lxd-api-direct-interaction/).'
-          - If trust_password is set, this module sends a request for
-            authentication before sending any requests.
-        type: str
+      - Name of the storage pool.
+    type: str
+    required: true
+  project:
+    description:
+      - 'Project of the storage pool.
+        See U(https://documentation.ubuntu.com/lxd/en/latest/projects/).'
+    type: str
+  driver:
+    description:
+      - 'Storage pool driver (required when creating a pool).
+        See U(https://documentation.ubuntu.com/lxd/en/latest/reference/storage_drivers/).'
+      - Common drivers include V(dir), V(zfs), V(btrfs), V(lvm), V(ceph).
+    type: str
+  config:
+    description:
+      - 'Configuration for the storage pool.
+        See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
+      - This can include driver-specific options like V(size), V(source), and so on.
+    type: dict
+  description:
+    description:
+      - Description of the storage pool.
+    type: str
+  state:
+    choices:
+      - present
+      - absent
+    description:
+      - Define the state of the storage pool.
+    default: present
+    type: str
+  target:
+    description:
+      - For cluster deployments. Will attempt to create a storage pool on a target node.
+      - The name should match the node name you see in C(lxc cluster list).
+    type: str
+  url:
+    description:
+      - The unix domain socket path or the https URL for the LXD server.
+    default: unix:/var/lib/lxd/unix.socket
+    type: str
+  snap_url:
+    description:
+      - The Unix domain socket path when LXD is installed by snap package manager.
+    default: unix:/var/snap/lxd/common/lxd/unix.socket
+    type: str
+  client_key:
+    description:
+      - The client certificate key file path.
+      - If not specified, it defaults to C(${HOME}/.config/lxc/client.key).
+    aliases: [key_file]
+    type: path
+  client_cert:
+    description:
+      - The client certificate file path.
+      - If not specified, it defaults to C(${HOME}/.config/lxc/client.crt).
+    aliases: [cert_file]
+    type: path
+  trust_password:
+    description:
+      - The client trusted password.
+      - 'You need to set this password on the LXD server before
+        running this module using the following command:
+        C(lxc config set core.trust_password <some random password>).
+        See U(https://www.stgraber.org/2016/04/18/lxd-api-direct-interaction/).'
+      - If trust_password is set, this module sends a request for
+        authentication before sending any requests.
+    type: str
 notes:
   - Storage pools must have unique names within their scope.
   - Storage pools can use various backend drivers (dir, zfs, btrfs, lvm, ceph).

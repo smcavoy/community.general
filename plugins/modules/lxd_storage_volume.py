@@ -22,117 +22,117 @@ author: "Sean McAvoy (@smcavoy)"
 extends_documentation_fragment:
   - community.general.attributes
 attributes:
-    check_mode:
-        support: full
-    diff_mode:
-        support: full
+  check_mode:
+    support: full
+  diff_mode:
+    support: full
 options:
-    name:
-        description:
-          - Name of the storage volume.
-        type: str
-        required: true
-    pool:
-        description:
-          - Name of the storage pool.
-          - Required when managing volumes.
-        type: str
-        required: true
-    project:
-        description:
-          - 'Project of the storage volume.
-            See U(https://documentation.ubuntu.com/lxd/en/latest/projects/).'
-        type: str
-    type:
-        description:
-          - Type of storage volume.
-          - V(custom) for custom storage volumes.
-          - V(container) for container volumes (read-only).
-          - V(virtual-machine) for VM volumes (read-only).
-          - V(image) for image volumes (read-only).
-        type: str
-        choices:
-          - custom
-          - container
-          - virtual-machine
-          - image
-        default: custom
-    content_type:
-        description:
-          - Content type of the storage volume.
-          - V(filesystem) for filesystem-based volumes (default).
-          - V(block) for block-based volumes.
-        type: str
-        choices:
-          - filesystem
-          - block
-        default: filesystem
-    config:
-        description:
-          - 'Configuration for the storage volume.
-            See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
-          - This can include V(size), V(snapshots.expiry), V(block.filesystem), V(block.mount_options), and so on.
-        type: dict
+  name:
     description:
-        description:
-          - Description of the storage volume.
-        type: str
-    state:
-        choices:
-          - present
-          - absent
-        description:
-          - Define the state of the storage volume.
-        default: present
-        type: str
-    target:
-        description:
-          - For cluster deployments. Specifies the cluster member where the volume should be located.
-          - When creating a new volume, it will be created on the specified target node.
-          - When a volume already exists on a different cluster member, see O(allow_migrate) for migration behavior.
-          - The name should match the node name you see in C(lxc cluster list).
-        type: str
-    allow_migrate:
-        description:
-          - Allow migration of the volume to the specified O(target) if it exists on a different cluster member.
-          - If V(false) and the volume exists on a different node than O(target), the module will fail.
-          - If V(true) and the volume exists on a different node than O(target), the volume will be migrated.
-          - Only relevant when O(target) is specified and the volume already exists.
-          - Migration may cause temporary unavailability of the volume.
-        type: bool
-        default: false
-    url:
-        description:
-          - The unix domain socket path or the https URL for the LXD server.
-        default: unix:/var/lib/lxd/unix.socket
-        type: str
-    snap_url:
-        description:
-          - The Unix domain socket path when LXD is installed by snap package manager.
-        default: unix:/var/snap/lxd/common/lxd/unix.socket
-        type: str
-    client_key:
-        description:
-          - The client certificate key file path.
-          - If not specified, it defaults to C(${HOME}/.config/lxc/client.key).
-        aliases: [ key_file ]
-        type: path
-    client_cert:
-        description:
-          - The client certificate file path.
-          - If not specified, it defaults to C(${HOME}/.config/lxc/client.crt).
-        aliases: [ cert_file ]
-        type: path
-    trust_password:
-        description:
-          - The client trusted password.
-          - 'You need to set this password on the LXD server before
-            running this module using the following command:
-            C(lxc config set core.trust_password <some random password>).
-            See U(https://www.stgraber.org/2016/04/18/lxd-api-direct-interaction/).'
-          - If trust_password is set, this module sends a request for
-            authentication before sending any requests.
-        type: str
+      - Name of the storage volume.
+    type: str
+    required: true
+  pool:
+    description:
+      - Name of the storage pool.
+      - Required when managing volumes.
+    type: str
+    required: true
+  project:
+    description:
+      - 'Project of the storage volume.
+        See U(https://documentation.ubuntu.com/lxd/en/latest/projects/).'
+    type: str
+  type:
+    description:
+      - Type of storage volume.
+      - V(custom) for custom storage volumes.
+      - V(container) for container volumes (read-only).
+      - V(virtual-machine) for VM volumes (read-only).
+      - V(image) for image volumes (read-only).
+    type: str
+    choices:
+      - custom
+      - container
+      - virtual-machine
+      - image
+    default: custom
+  content_type:
+    description:
+      - Content type of the storage volume.
+      - V(filesystem) for filesystem-based volumes (default).
+      - V(block) for block-based volumes.
+    type: str
+    choices:
+      - filesystem
+      - block
+    default: filesystem
+  config:
+    description:
+      - 'Configuration for the storage volume.
+        See U(https://documentation.ubuntu.com/lxd/en/latest/api/).'
+      - This can include V(size), V(snapshots.expiry), V(block.filesystem), V(block.mount_options), and so on.
+    type: dict
+  description:
+    description:
+      - Description of the storage volume.
+    type: str
+  state:
+    choices:
+      - present
+      - absent
+    description:
+      - Define the state of the storage volume.
+    default: present
+    type: str
+  target:
+    description:
+      - For cluster deployments. Specifies the cluster member where the volume should be located.
+      - When creating a new volume, it will be created on the specified target node.
+      - When a volume already exists on a different cluster member, see O(allow_migrate) for migration behavior.
+      - The name should match the node name you see in C(lxc cluster list).
+    type: str
+  allow_migrate:
+    description:
+      - Allow migration of the volume to the specified O(target) if it exists on a different cluster member.
+      - If V(false) and the volume exists on a different node than O(target), the module will fail.
+      - If V(true) and the volume exists on a different node than O(target), the volume will be migrated.
+      - Only relevant when O(target) is specified and the volume already exists.
+      - Migration may cause temporary unavailability of the volume.
+    type: bool
+    default: false
+  url:
+    description:
+      - The unix domain socket path or the https URL for the LXD server.
+    default: unix:/var/lib/lxd/unix.socket
+    type: str
+  snap_url:
+    description:
+      - The Unix domain socket path when LXD is installed by snap package manager.
+    default: unix:/var/snap/lxd/common/lxd/unix.socket
+    type: str
+  client_key:
+    description:
+      - The client certificate key file path.
+      - If not specified, it defaults to C(${HOME}/.config/lxc/client.key).
+    aliases: [key_file]
+    type: path
+  client_cert:
+    description:
+      - The client certificate file path.
+      - If not specified, it defaults to C(${HOME}/.config/lxc/client.crt).
+    aliases: [cert_file]
+    type: path
+  trust_password:
+    description:
+      - The client trusted password.
+      - 'You need to set this password on the LXD server before
+        running this module using the following command:
+        C(lxc config set core.trust_password <some random password>).
+        See U(https://www.stgraber.org/2016/04/18/lxd-api-direct-interaction/).'
+      - If trust_password is set, this module sends a request for
+        authentication before sending any requests.
+    type: str
 notes:
   - Custom storage volumes can be attached to containers and virtual machines.
   - Block volumes require specific filesystem configuration in the config.
