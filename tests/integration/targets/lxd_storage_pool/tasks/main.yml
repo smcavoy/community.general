@@ -1,0 +1,132 @@
+---
+####################################################################
+# WARNING: These are designed specifically for Ansible tests       #
+# and should not be used as examples of how to write Ansible roles #
+####################################################################
+
+# Copyright (c) 2024, Sean McAvoy (@smcavoy) <seanmcavoy@gmail.com>
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: LXD Storage Pool Integration Tests
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    test_pool: integration-test-pool
+    lxd_socket: unix:/var/snap/lxd/common/lxd/unix.socket
+
+  tasks:
+    - name: Test 1 - Create storage pool (check mode)
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        driver: dir
+        config:
+          source: "/var/snap/lxd/common/lxd/storage-pools/{{ test_pool }}"
+        description: "Integration test pool"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      check_mode: true
+      register: pool_check
+
+    - name: Verify check mode did not create pool
+      assert:
+        that:
+          - pool_check is changed
+          - pool_check.old_state == "absent"
+          - "'create' in pool_check.actions"
+        fail_msg: Check mode should show changes but not apply them
+
+    - name: Test 2 - Create storage pool (actual)
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        driver: dir
+        config:
+          source: "/var/snap/lxd/common/lxd/storage-pools/{{ test_pool }}"
+        description: "Integration test pool"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: pool_create
+
+    - name: Verify pool creation
+      assert:
+        that:
+          - pool_create is changed
+          - pool_create.old_state == "absent"
+          - "'create' in pool_create.actions"
+        fail_msg: Pool should have been created
+
+    - name: Test 3 - Update pool description (idempotent test)
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        description: "Integration test pool"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: pool_idempotent
+
+    - name: Verify idempotency
+      assert:
+        that:
+          - pool_idempotent is not changed
+          - pool_idempotent.old_state == "present"
+          - pool_idempotent.actions | length == 0
+        fail_msg: Pool should not have changed
+
+    - name: Test 4 - Update pool description (actual change)
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        description: "Updated integration test pool"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: pool_update
+
+    - name: Verify pool update
+      assert:
+        that:
+          - pool_update is changed
+          - pool_update.old_state == "present"
+          - "'apply_configs' in pool_update.actions"
+        fail_msg: Pool description should have been updated
+
+    - name: Test 5 - Delete pool
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        state: absent
+        snap_url: "{{ lxd_socket }}"
+      register: pool_delete
+
+    - name: Verify pool deletion
+      assert:
+        that:
+          - pool_delete is changed
+          - pool_delete.old_state == "present"
+          - "'delete' in pool_delete.actions"
+        fail_msg: Pool should have been deleted
+
+    - name: Test 6 - Delete idempotency (pool already gone)
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        state: absent
+        snap_url: "{{ lxd_socket }}"
+      register: pool_delete_idempotent
+
+    - name: Verify deletion idempotency
+      assert:
+        that:
+          - pool_delete_idempotent is not changed
+          - pool_delete_idempotent.old_state == "absent"
+          - pool_delete_idempotent.actions | length == 0
+        fail_msg: Pool deletion should be idempotent
+
+    - name: "=== ALL POOL TESTS PASSED ==="
+      debug:
+        msg: |
+          ✓ Check mode works correctly
+          ✓ Storage pools can be created
+          ✓ Storage pools show idempotency
+          ✓ Storage pool descriptions can be updated
+          ✓ Storage pools can be deleted
+          ✓ Deletion is idempotent
+
+          All storage pool tests passed!

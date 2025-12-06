@@ -1,0 +1,300 @@
+---
+####################################################################
+# WARNING: These are designed specifically for Ansible tests       #
+# and should not be used as examples of how to write Ansible roles #
+####################################################################
+
+# Copyright (c) 2024, Sean McAvoy (@smcavoy) <seanmcavoy@gmail.com>
+# GNU General Public License v3.0+ (see LICENSES/GPL-3.0-or-later.txt or https://www.gnu.org/licenses/gpl-3.0.txt)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: LXD Storage Volume Integration Tests
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    test_pool: integration-test-pool
+    test_fs_volume: test-fs-volume
+    test_block_volume: test-block-volume
+    lxd_socket: unix:/var/snap/lxd/common/lxd/unix.socket
+
+  tasks:
+    # Setup - Create a test pool
+    - name: Setup - Create storage pool for volume tests
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        driver: dir
+        config:
+          source: "/var/snap/lxd/common/lxd/storage-pools/{{ test_pool }}"
+        description: "Pool for volume testing"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+
+    # Filesystem Volume Tests
+    - name: Test 1 - Create filesystem volume (check mode)
+      community.general.lxd_storage_volume:
+        name: "{{ test_fs_volume }}"
+        pool: "{{ test_pool }}"
+        type: custom
+        content_type: filesystem
+        config:
+          size: 1GiB
+        description: "Filesystem test volume"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      check_mode: true
+      register: fs_volume_check
+
+    - name: Verify check mode did not create filesystem volume
+      assert:
+        that:
+          - fs_volume_check is changed
+          - fs_volume_check.old_state == "absent"
+          - "'create' in fs_volume_check.actions"
+
+    - name: Test 2 - Create filesystem volume (actual)
+      community.general.lxd_storage_volume:
+        name: "{{ test_fs_volume }}"
+        pool: "{{ test_pool }}"
+        type: custom
+        content_type: filesystem
+        config:
+          size: 1GiB
+        description: "Filesystem test volume"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: fs_volume_create
+
+    - name: Verify filesystem volume creation
+      assert:
+        that:
+          - fs_volume_create is changed
+          - fs_volume_create.old_state == "absent"
+          - "'create' in fs_volume_create.actions"
+
+    - name: Test 3 - Filesystem volume idempotency
+      community.general.lxd_storage_volume:
+        name: "{{ test_fs_volume }}"
+        pool: "{{ test_pool }}"
+        config:
+          size: 1GiB
+        description: "Filesystem test volume"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: fs_volume_idempotent
+
+    - name: Verify filesystem volume idempotency
+      assert:
+        that:
+          - fs_volume_idempotent is not changed
+          - fs_volume_idempotent.actions | length == 0
+
+    - name: Test 4 - Increase filesystem volume size
+      community.general.lxd_storage_volume:
+        name: "{{ test_fs_volume }}"
+        pool: "{{ test_pool }}"
+        config:
+          size: 2GiB
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: fs_volume_resize
+
+    - name: Verify filesystem volume resize
+      assert:
+        that:
+          - fs_volume_resize is changed
+          - "'apply_configs' in fs_volume_resize.actions"
+
+    # Block Volume Tests
+    - name: Test 5 - Create block volume
+      community.general.lxd_storage_volume:
+        name: "{{ test_block_volume }}"
+        pool: "{{ test_pool }}"
+        type: custom
+        content_type: block
+        config:
+          size: 1GiB
+        description: "Block test volume"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: block_volume_create
+
+    - name: Verify block volume creation
+      assert:
+        that:
+          - block_volume_create is changed
+          - block_volume_create.old_state == "absent"
+          - "'create' in block_volume_create.actions"
+
+    - name: Test 6 - Block volume idempotency
+      community.general.lxd_storage_volume:
+        name: "{{ test_block_volume }}"
+        pool: "{{ test_pool }}"
+        content_type: block
+        config:
+          size: 1GiB
+        description: "Block test volume"
+        state: present
+        snap_url: "{{ lxd_socket }}"
+      register: block_volume_idempotent
+
+    - name: Verify block volume idempotency
+      assert:
+        that:
+          - block_volume_idempotent is not changed
+          - block_volume_idempotent.actions | length == 0
+
+    # Migration Tests (only run if LXD is clustered)
+    - name: Check if LXD is clustered
+      ansible.builtin.command: lxc cluster list --format=json
+      register: cluster_check
+      failed_when: false
+      changed_when: false
+
+    - name: Parse cluster information
+      ansible.builtin.set_fact:
+        lxd_cluster_nodes: "{{ cluster_check.stdout | from_json }}"
+      when: cluster_check.rc == 0
+
+    - name: Set cluster test flag
+      ansible.builtin.set_fact:
+        is_clustered: "{{ lxd_cluster_nodes | default([]) | length > 1 }}"
+
+    - name: Migration test block
+      when: is_clustered | bool
+      block:
+        - name: Get current node name
+          ansible.builtin.set_fact:
+            current_node: "{{ lxd_cluster_nodes[0].server_name }}"
+            target_node: "{{ lxd_cluster_nodes[1].server_name }}"
+
+        - name: Test 7 - Create volume on specific cluster node
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ current_node }}"
+            config:
+              size: 1GiB
+            description: "Volume for migration testing"
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_create_targeted
+
+        - name: Verify volume created on target node
+          assert:
+            that:
+              - volume_create_targeted is changed
+              - "'create' in volume_create_targeted.actions"
+
+        - name: Test 8 - Attempt migration without allow_migrate (should fail)
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ target_node }}"
+            allow_migrate: false
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_migrate_blocked
+          failed_when: false
+
+        - name: Verify migration was blocked
+          assert:
+            that:
+              - volume_migrate_blocked is failed
+              - volume_migrate_blocked is not changed
+              - "'allow_migrate=true' in volume_migrate_blocked.msg"
+
+        - name: Test 9 - Migrate volume with allow_migrate=true
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ target_node }}"
+            allow_migrate: true
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_migrated
+
+        - name: Verify volume was migrated
+          assert:
+            that:
+              - volume_migrated is changed
+              - "'migrate' in volume_migrated.actions"
+
+        - name: Test 10 - Migration idempotency (no migration needed)
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ target_node }}"
+            allow_migrate: true
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          register: volume_migrate_idempotent
+
+        - name: Verify no migration occurred
+          assert:
+            that:
+              - volume_migrate_idempotent is not changed
+              - "'migrate' not in volume_migrate_idempotent.actions"
+
+        - name: Test 11 - Migration in check mode
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            target: "{{ current_node }}"
+            allow_migrate: true
+            state: present
+            snap_url: "{{ lxd_socket }}"
+          check_mode: true
+          register: volume_migrate_check
+
+        - name: Verify check mode shows migration would occur
+          assert:
+            that:
+              - volume_migrate_check is changed
+              - "'migrate' in volume_migrate_check.actions"
+
+        - name: Cleanup - Delete migration test volume
+          community.general.lxd_storage_volume:
+            name: test-migrate-volume
+            pool: "{{ test_pool }}"
+            state: absent
+            snap_url: "{{ lxd_socket }}"
+
+    - name: Skip migration tests message
+      ansible.builtin.debug:
+        msg: "Skipping migration tests - LXD is not configured as a cluster or has only one node"
+      when: not (is_clustered | bool)
+
+    # Cleanup
+    - name: Cleanup - Delete filesystem volume
+      community.general.lxd_storage_volume:
+        name: "{{ test_fs_volume }}"
+        pool: "{{ test_pool }}"
+        state: absent
+        snap_url: "{{ lxd_socket }}"
+
+    - name: Cleanup - Delete block volume
+      community.general.lxd_storage_volume:
+        name: "{{ test_block_volume }}"
+        pool: "{{ test_pool }}"
+        state: absent
+        snap_url: "{{ lxd_socket }}"
+
+    - name: Cleanup - Delete storage pool
+      community.general.lxd_storage_pool:
+        name: "{{ test_pool }}"
+        state: absent
+        snap_url: "{{ lxd_socket }}"
+
+    - name: "=== ALL VOLUME TESTS PASSED ==="
+      debug:
+        msg: |
+          ✓ Filesystem volume check mode works
+          ✓ Filesystem volumes can be created
+          ✓ Filesystem volumes show idempotency
+          ✓ Filesystem volumes can be resized
+          ✓ Block volumes can be created
+          ✓ Block volumes show idempotency
+
+          All storage volume tests passed!

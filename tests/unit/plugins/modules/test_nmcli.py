@@ -10,7 +10,7 @@ import pytest
 
 from ansible.module_utils.common.text.converters import to_text
 from ansible_collections.community.general.plugins.modules import nmcli
-from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.basic import AnsibleModule  # noqa: F401 # pylint: disable=unused-import
 
 pytestmark = pytest.mark.usefixtures("patch_ansible_module")
 
@@ -841,6 +841,34 @@ connection.autoconnect:                 yes
 vxlan.id:                               11
 vxlan.local:                            192.168.225.5
 vxlan.remote:                           192.168.225.6
+"""
+
+TESTCASE_VXLAN_MULTICAST = [
+    {
+        "type": "vxlan",
+        "conn_name": "vxlan_multicast_test",
+        "ifname": "vxlan-device",
+        "vxlan_id": 17,
+        "vxlan_parent": "eth1",
+        "vxlan_local": "192.168.1.2",
+        "vxlan_remote": "239.192.0.17",
+        "slave_type": "bridge",
+        "master": "br0",
+        "state": "present",
+        "_ansible_check_mode": False,
+    }
+]
+
+TESTCASE_VXLAN_MULTICAST_SHOW_OUTPUT = """\
+connection.id:                          vxlan_multicast_test
+connection.interface-name:              vxlan-device
+connection.autoconnect:                 yes
+connection.slave-type:                  bridge
+connection.master:                      br0
+vxlan.id:                               17
+vxlan.parent:                           eth1
+vxlan.local:                            192.168.1.2
+vxlan.remote:                           239.192.0.17
 """
 
 TESTCASE_GRE = [
@@ -2912,6 +2940,51 @@ def test_vxlan_connection_unchanged(mocked_vxlan_connection_unchanged, capfd):
     assert not results["changed"]
 
 
+@pytest.mark.parametrize("patch_ansible_module", TESTCASE_VXLAN_MULTICAST, indirect=["patch_ansible_module"])
+def test_create_vxlan_multicast(mocked_generic_connection_create, capfd):
+    """
+    Test if vxlan with multicast and parent device created
+    """
+    with pytest.raises(SystemExit):
+        nmcli.main()
+
+    assert nmcli.Nmcli.execute_command.call_count == 1
+    arg_list = nmcli.Nmcli.execute_command.call_args_list
+    args, kwargs = arg_list[0]
+
+    assert args[0][0] == "/usr/bin/nmcli"
+    assert args[0][1] == "con"
+    assert args[0][2] == "add"
+    assert args[0][3] == "type"
+    assert args[0][4] == "vxlan"
+    assert args[0][5] == "con-name"
+    assert args[0][6] == "vxlan_multicast_test"
+
+    args_text = list(map(to_text, args[0]))
+    for param in [
+        "connection.interface-name",
+        "vxlan-device",
+        "vxlan.local",
+        "192.168.1.2",
+        "vxlan.remote",
+        "239.192.0.17",
+        "vxlan.id",
+        "17",
+        "vxlan.parent",
+        "eth1",
+        "connection.slave-type",
+        "bridge",
+        "connection.master",
+        "br0",
+    ]:
+        assert param in args_text
+
+    out, err = capfd.readouterr()
+    results = json.loads(out)
+    assert not results.get("failed")
+    assert results["changed"]
+
+
 @pytest.mark.parametrize("patch_ansible_module", TESTCASE_IPIP, indirect=["patch_ansible_module"])
 def test_create_ipip(mocked_generic_connection_create, capfd):
     """
@@ -4576,181 +4649,7 @@ def test_bond_connection_unchanged_2(mocked_generic_connection_diff_check, capfd
     Test : Bond connection unchanged
     """
 
-    module = AnsibleModule(
-        argument_spec=dict(
-            ignore_unsupported_suboptions=dict(type="bool", default=False),
-            autoconnect=dict(type="bool", default=True),
-            autoconnect_priority=dict(type="int"),
-            autoconnect_retries=dict(type="int"),
-            state=dict(type="str", required=True, choices=["absent", "present"]),
-            conn_name=dict(type="str", required=True),
-            conn_reload=dict(type="bool", required=False, default=False),
-            master=dict(type="str"),
-            slave_type=dict(type=str, choices=["bond", "bridge", "team"]),
-            ifname=dict(type="str"),
-            type=dict(
-                type="str",
-                choices=[
-                    "bond",
-                    "bond-slave",
-                    "bridge",
-                    "bridge-slave",
-                    "dummy",
-                    "ethernet",
-                    "generic",
-                    "gre",
-                    "infiniband",
-                    "ipip",
-                    "sit",
-                    "team",
-                    "team-slave",
-                    "vlan",
-                    "vxlan",
-                    "wifi",
-                    "gsm",
-                    "macvlan",
-                    "wireguard",
-                    "vpn",
-                ],
-            ),
-            ip4=dict(type="list", elements="str"),
-            gw4=dict(type="str"),
-            gw4_ignore_auto=dict(type="bool", default=False),
-            routes4=dict(type="list", elements="str"),
-            routes4_extended=dict(
-                type="list",
-                elements="dict",
-                options=dict(
-                    ip=dict(type="str", required=True),
-                    next_hop=dict(type="str"),
-                    metric=dict(type="int"),
-                    table=dict(type="int"),
-                    tos=dict(type="int"),
-                    cwnd=dict(type="int"),
-                    mtu=dict(type="int"),
-                    onlink=dict(type="bool"),
-                ),
-            ),
-            route_metric4=dict(type="int"),
-            routing_rules4=dict(type="list", elements="str"),
-            never_default4=dict(type="bool", default=False),
-            dns4=dict(type="list", elements="str"),
-            dns4_search=dict(type="list", elements="str"),
-            dns4_options=dict(type="list", elements="str"),
-            dns4_ignore_auto=dict(type="bool", default=False),
-            method4=dict(type="str", choices=["auto", "link-local", "manual", "shared", "disabled"]),
-            may_fail4=dict(type="bool", default=True),
-            dhcp_client_id=dict(type="str"),
-            ip6=dict(type="list", elements="str"),
-            gw6=dict(type="str"),
-            gw6_ignore_auto=dict(type="bool", default=False),
-            dns6=dict(type="list", elements="str"),
-            dns6_search=dict(type="list", elements="str"),
-            dns6_options=dict(type="list", elements="str"),
-            dns6_ignore_auto=dict(type="bool", default=False),
-            routes6=dict(type="list", elements="str"),
-            routes6_extended=dict(
-                type="list",
-                elements="dict",
-                options=dict(
-                    ip=dict(type="str", required=True),
-                    next_hop=dict(type="str"),
-                    metric=dict(type="int"),
-                    table=dict(type="int"),
-                    cwnd=dict(type="int"),
-                    mtu=dict(type="int"),
-                    onlink=dict(type="bool"),
-                ),
-            ),
-            route_metric6=dict(type="int"),
-            method6=dict(type="str", choices=["ignore", "auto", "dhcp", "link-local", "manual", "shared", "disabled"]),
-            ip_privacy6=dict(type="str", choices=["disabled", "prefer-public-addr", "prefer-temp-addr", "unknown"]),
-            addr_gen_mode6=dict(type="str", choices=["default", "default-or-eui64", "eui64", "stable-privacy"]),
-            # Bond Specific vars
-            mode=dict(
-                type="str",
-                default="balance-rr",
-                choices=[
-                    "802.3ad",
-                    "active-backup",
-                    "balance-alb",
-                    "balance-rr",
-                    "balance-tlb",
-                    "balance-xor",
-                    "broadcast",
-                ],
-            ),
-            miimon=dict(type="int"),
-            downdelay=dict(type="int"),
-            updelay=dict(type="int"),
-            xmit_hash_policy=dict(type="str"),
-            fail_over_mac=dict(type="str", choices=["none", "active", "follow"]),
-            arp_interval=dict(type="int"),
-            arp_ip_target=dict(type="str"),
-            primary=dict(type="str"),
-            # general usage
-            mtu=dict(type="int"),
-            mac=dict(type="str"),
-            zone=dict(type="str"),
-            # bridge specific vars
-            stp=dict(type="bool", default=True),
-            priority=dict(type="int", default=128),
-            slavepriority=dict(type="int", default=32),
-            forwarddelay=dict(type="int", default=15),
-            hellotime=dict(type="int", default=2),
-            maxage=dict(type="int", default=20),
-            ageingtime=dict(type="int", default=300),
-            hairpin=dict(type="bool"),
-            path_cost=dict(type="int", default=100),
-            # team specific vars
-            runner=dict(
-                type="str",
-                default="roundrobin",
-                choices=["broadcast", "roundrobin", "activebackup", "loadbalance", "lacp"],
-            ),
-            # team active-backup runner specific options
-            runner_hwaddr_policy=dict(type="str", choices=["same_all", "by_active", "only_active"]),
-            # team lacp runner specific options
-            runner_fast_rate=dict(type="bool"),
-            # vlan specific vars
-            vlanid=dict(type="int"),
-            vlandev=dict(type="str"),
-            flags=dict(type="str"),
-            ingress=dict(type="str"),
-            egress=dict(type="str"),
-            # vxlan specific vars
-            vxlan_id=dict(type="int"),
-            vxlan_local=dict(type="str"),
-            vxlan_remote=dict(type="str"),
-            # ip-tunnel specific vars
-            ip_tunnel_dev=dict(type="str"),
-            ip_tunnel_local=dict(type="str"),
-            ip_tunnel_remote=dict(type="str"),
-            # ip-tunnel type gre specific vars
-            ip_tunnel_input_key=dict(type="str", no_log=True),
-            ip_tunnel_output_key=dict(type="str", no_log=True),
-            # 802-11-wireless* specific vars
-            ssid=dict(type="str"),
-            wifi=dict(type="dict"),
-            wifi_sec=dict(type="dict", no_log=True),
-            gsm=dict(type="dict"),
-            macvlan=dict(type="dict"),
-            wireguard=dict(type="dict"),
-            vpn=dict(type="dict"),
-            sriov=dict(type="dict"),
-            # infiniband specific vars
-            transport_mode=dict(type="str", choices=["datagram", "connected"]),
-            infiniband_mac=dict(type="str"),
-        ),
-        mutually_exclusive=[
-            ["never_default4", "gw4"],
-            ["routes4_extended", "routes4"],
-            ["routes6_extended", "routes6"],
-        ],
-        required_if=[("type", "wifi", [("ssid")])],
-        supports_check_mode=True,
-    )
-    module.run_command_environ_update = dict(LANG="C", LC_ALL="C", LC_MESSAGES="C", LC_CTYPE="C")
+    module = nmcli.create_module()
 
     nmcli_module = nmcli.Nmcli(module)
 
