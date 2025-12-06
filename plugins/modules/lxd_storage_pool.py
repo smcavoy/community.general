@@ -174,7 +174,7 @@ actions:
 """
 
 import os
-from typing import Any
+from typing import Any, NoReturn
 from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import AnsibleModule
@@ -249,22 +249,22 @@ class LXDStoragePoolManagement:
         self.diff: dict[str, dict[str, Any]] = {"before": {}, "after": {}}
         self.old_pool_json: dict[str, Any] = {}
 
-    def _fail_from_lxd_exception(self, exception: LXDClientException) -> None:
+    def _fail_from_lxd_exception(self, exception: LXDClientException) -> NoReturn:
         """Build failure parameters from LXDClientException and fail.
 
         :param exception: The LXDClientException instance
         :type exception: LXDClientException
         """
-        fail_params = {
-            "msg": exception.msg,
-            "changed": len(self.actions) > 0,
-            "actions": self.actions,
-            "diff": self.diff,
-        }
+        fail_params: dict[str, Any] = {"changed": len(self.actions) > 0}
+        if self.actions:
+            fail_params["actions"] = self.actions
+        if any(self.diff.values()):
+            fail_params["diff"] = self.diff
+        if "error_code" in exception.kwargs:
+            fail_params["error_code"] = exception.kwargs["error_code"]
         if self.client.debug and "logs" in exception.kwargs:
             fail_params["logs"] = exception.kwargs["logs"]
-        msg = fail_params.pop("msg")
-        self.module.fail_json(msg=msg, **fail_params)
+        self.module.fail_json(msg=exception.msg, **fail_params)
 
     def _build_config(self) -> None:
         self.config = {}
