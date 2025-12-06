@@ -264,7 +264,7 @@ class LXDStoragePoolManagement:
         if self.client.debug and "logs" in exception.kwargs:
             fail_params["logs"] = exception.kwargs["logs"]
         msg = fail_params.pop("msg")
-        self.module.fail_json(msg, **fail_params)
+        self.module.fail_json(msg=msg, **fail_params)
 
     def _build_config(self) -> None:
         self.config = {}
