@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Sean McAvoy <seanmcavoy@gmail.com>
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # LXD Storage Integration Tests
 
 This directory contains integration tests for the `lxd_storage_pool` module.
