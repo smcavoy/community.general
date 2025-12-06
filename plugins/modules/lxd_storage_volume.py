@@ -436,10 +436,7 @@ class LXDStorageVolumeManagement:
             return self.config[key] != old_configs
 
     def _needs_to_apply_configs(self) -> bool:
-        for param in CONFIG_PARAMS:
-            if self._needs_to_change_config(param):
-                return True
-        return False
+        return any(self._needs_to_change_config(param) for param in CONFIG_PARAMS)
 
     def _apply_storage_volume_configs(self) -> None:
         old_metadata = self.old_volume_json.get("metadata", {})

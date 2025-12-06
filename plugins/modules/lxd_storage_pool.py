@@ -332,13 +332,11 @@ class LXDStoragePoolManagement:
             return self.config[key] != old_configs
 
     def _needs_to_apply_configs(self) -> bool:
-        for param in CONFIG_PARAMS:
-            if param == "driver":
-                # Driver cannot be changed after creation
-                continue
-            if self._needs_to_change_config(param):
-                return True
-        return False
+        return any(
+            self._needs_to_change_config(param)
+            for param in CONFIG_PARAMS
+            if param != "driver"  # driver cannot be changed after creation
+        )
 
     def _apply_storage_pool_configs(self) -> None:
         old_metadata = self.old_pool_json.get("metadata", {})
