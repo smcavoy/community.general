@@ -242,8 +242,8 @@ actions:
   sample: ["create", "migrate", "apply_configs", "delete"]
 """
 
-# ruff: noqa: E402
 import os
+from typing import Any
 from urllib.parse import quote, urlencode
 
 from ansible.module_utils.basic import AnsibleModule
@@ -319,9 +319,9 @@ class LXDStorageVolumeManagement:
             self._fail_from_lxd_exception(e)
 
         self.trust_password = self.module.params.get("trust_password", None)
-        self.actions = []
-        self.diff = {"before": {}, "after": {}}
-        self.old_volume_json = {}
+        self.actions: list[str] = []
+        self.diff: dict[str, dict[str, Any]] = {"before": {}, "after": {}}
+        self.old_volume_json: dict[str, Any] = {}
 
     def _fail_from_lxd_exception(self, exception: LXDClientException) -> None:
         """Build failure parameters from LXDClientException and fail.
@@ -337,7 +337,8 @@ class LXDStorageVolumeManagement:
         }
         if self.client.debug and "logs" in exception.kwargs:
             fail_params["logs"] = exception.kwargs["logs"]
-        self.module.fail_json(**fail_params)
+        msg = fail_params.pop("msg")
+        self.module.fail_json(msg, **fail_params)
 
     def _build_config(self) -> None:
         self.config = {}
